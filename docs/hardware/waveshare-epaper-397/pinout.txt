@@ -1,0 +1,88 @@
+ESP32-S3-WROOM-1-N16R8 Wi-Fi and Bluetooth SoC, up to 240MHz operating frequency, stacked with 16MB Flash and 8MB PSRAM
+SHTC3 Temperature and Humidity Sensor Provides ambient temperature and humidity measurement, enabling environmental monitoring function
+PCF85063 RTC clock chip, supporting time-keeping functionality
+Rotary Button Supports customizable button functions in three directions
+PWR Key Can be used with programs to control all power functions when powered by a lithium battery
+BOOT Button Press and hold the BOOT button to power on again to enter download mode
+NS4150B Audio power amplifier chip
+ES8311 Low-power audio codec chip
+QMI8658 6-axis IMU includes a 3-axis gyroscope and a 3-axis accelerometer
+MX1.25 Speaker Header
+MX1.25 RTC Backup Battery Header Used to power the RTC when no battery is connected to the lithium battery interface
+MX1.25 Lithium Battery Header MX1.25 2PIN connector for connecting a 3.7V lithium battery, supports charging and discharging
+3.97inch e-Paper Display Interface
+TG28 Highly integrated power management chip
+Microphone
+Type-C Interface Used for program flashing and log printing
+**TF Card Slot ** Supports FAT32-formatted TF card for data expansion
+
+
+ESP32 S3 N16R8 connect with:
+
+1. epaper eink display 3.97 inches
+GPIO3 - EPD_BUSY
+GPIO46 - EPD_RST
+GPIO9 - EPD_DC
+GPIO10 - EPD_CS
+GPIO11 - EPD_SCK
+GPIO12 - EPD_DIN
+
+2. Audio ES8311 (verified: Waveshare 01_Audio_Test, Xiaozhi config.h, CrossPoint HalGPIO.h)
+
+GPIO13 - I2S_MCLK
+GPIO14 - I2S_BCLK/SCLK
+GPIO47 - I2S_WS/LRCK
+GPIO21 - I2S_DIN (codec to ESP, record)
+GPIO48 - I2S_DOUT (ESP to codec, play)
+
+GPIO39 - AudioCTR_PIN (NS4150B PA enable; also labeled AXIS_INT1 on schematic — IMU uses polling)
+GPIO41 - I2C_SDA (shared: ES8311 0x18, AXP 0x34, RTC 0x51, SHTC3 0x70, QMI8658 0x6A/0x6B)
+GPIO42 - I2C_SCL
+
+3. SD Card
+
+GPIO7 - SD_D1
+GPIO15 - SD_MISO
+GPIO16 - SD_CLK
+GPIO17 - SD_MOSI
+GPIO18 - SD_CS
+GPIO8 - SD_D2
+
+4. RTC PCF85063ATL
+GPIO45 - RTC_INT_ESP
+GPIO41 - RTC_SDA
+GPIO42 - RTC_SCL
+
+5. Key and LED
+GPIO4 - Button_Up
+GPIO5 - Button_Function
+GPIO6 - Button_Down
+GPIO43 - ESP_LED1
+GPIO44 - ESP_LED2
+
+6. QMI8658A
+GPIO39 - AXIS_INT1
+GPIO40 - AXIS_INT2
+GPIO41 - AXIS_SDA
+GPIO42 - AXSI_SCL
+
+7. Power AXP2101 (schematic "TG28"; same class as X-Powers AXP2101)
+GPIO38 - PWR_IRQ (AXP open-drain IRQ for PEK / PMIC events)
+GPIO41 - AXP_SDA
+GPIO42 - AXP_SCL
+GPIO2 - ESP_CHG (charge status)
+GPIO1 - PWR_OUT (PMIC power-key sense; not used for deep-sleep wake on this port — use GPIO4/5/6)
+
+8. OTS / boot
+GPIO19 - ESP_USB_N
+GPIO20 - ESP_USB_P
+GPIO0 - ESP_BOOT (debounce cap to GND + parallel BOOT switch; INPUT_PULLUP — pressed = LOW)
+       Short press = Back (same as double-tap center). Hold 3s+ = deep sleep. Not used as esp_deep_sleep wake.
+GPIO41 - AESP_I2C_SDA
+GPIO42 - ESP_I2C_SCL
+GPIO43 - ESP_UART_RX
+GPIO44 - ESP_UART_TX
+
+9. SHTC3
+GPIO41 - SDA
+GPIO42 - SCL

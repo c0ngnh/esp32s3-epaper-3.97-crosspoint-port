@@ -1,0 +1,41 @@
+# PlatformIO / IDE
+.pio/
+.cache/
+.vscode/
+.idea/
+.cursor/
+*.code-workspace
+
+# Local build outputs (if copied to project root)
+/firmware.bin
+/firmware.elf
+
+# Optional vendor / wiki dumps (not required to build)
+docs/ESP32-S3-ePaper-3.97/
+*.local.ini
+platformio.local.ini
+
+# Generated at build time (pre: scripts)
+src/network/html/*.generated.h
+lib/I18n/I18nKeys.h
+lib/I18n/I18nStrings.h
+lib/I18n/I18nStrings.cpp
+
+# Optional local vendor dump (not required to build)
+.waveshare-ref/
+
+# Python / OS
+__pycache__/
+*.pyc
+.DS_Store
+Thumbs.db
+
+# Logs / local dev notes
+*.log
+fix-cursor-encode*.txt
+agent-transcripts/
+canvases/
+
+# Backup archives (create outside repo or in parent folder)
+*.zip
+*.7z

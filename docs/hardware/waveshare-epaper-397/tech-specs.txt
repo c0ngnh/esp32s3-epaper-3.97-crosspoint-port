@@ -1,0 +1,41 @@
+Technical Specifications of e-ink epaper board : Waveshare ESP32-S3-ePaper-3.97
+1. General Display Info   
+Type: Active Matrix Electrophoretic Display (AM EPD).  
+Resolution: $800 \times 480$ pixels.  
+Driver IC: SSD1677.  
+Grayscale: Supports 2-level (Black/White) and 4-level gray.  
+Refresh Time: Full update ~3s, Partial update ~0.3s.  
+
+2. Interface & Pin Assignment (SPI)   
+Con này dùng chuẩn 4-wire SPI (mặc định BS1 chân Low).  
+SCL: Serial Clock.  SDA: Serial Data (MOSI).  
+CSB: Chip Select (Active Low).  
+DC: Data/Command Control (High: Data, Low: Command).  
+RST_N: Hardware Reset (Active Low).  
+BUSY_N: Busy State (High: Busy/Don't send commands, Low: Idle).  
+
+3. Electrical Characteristics   
+Logic Voltage (VCI/VDDIO): 2.2V to 3.3V (Typical 3.0V).  
+SPI Frequency: Max 20MHz (Write mode).  
+
+4. Critical Commands (SSD1677)   
+Software Reset: 0x12.  
+Driver Output Control: 0x01.  
+Data Entry Mode: 0x11 (Define address increment/decrement).  
+Update Control 2: 0x22 (Sequence option for Master Activation).  
+Master Activation: 0x20 (Execute display update).  
+Deep Sleep: 0x10 (Mode 1: 0x01 to enter).  
+
+NOTE: Firmware hiện tại dùng `SPISettings(..., MSBFIRST, SPI_MODE0)` và giới hạn SPI ở 20MHz cho board Waveshare mặc định.  
+
+5. Operation Sequence (For AI Code Generation)   
+Hardware Reset: RES# Low (200us) -> High (200us).  
+Wait Busy Low.  
+Software Reset (0x12).  
+Booster Soft-start (0x0C): Data 0xAE 0xC7 0xC3 0xC0 0x80.  
+Set Display Size (0x01): Data 0xDF 0x01 0x02.  
+Set RAM Address: 0x44 (X), 0x45 (Y).  
+Load Image Data: 0x24 (BW image - 48,000 bytes).  
+Update Display: 0x22 (Data 0xF7) -> 0x20.  
+
+IMPORTANT NOTE: dùng đúng tập lệnh (Command Table) ở mục 4 để tránh bị lỗi render màn hình.

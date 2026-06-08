@@ -1,0 +1,66 @@
+CrossPoint Reader — ESP32-S3 ePaper 3.97 port
+Backup / portable snapshot metadata
+========================================
+
+Snapshot prepared:  2026-06-06
+Last clean verify:  2026-06-06 (clean_for_share: ~28 MB tree, freed ~1 GB from dev build)
+Release tag:         1.3.0-WS397-RC  (Waveshare 3.97 release candidate)
+Firmware version:    1.3.0-WS397-RC  (platformio.ini [crosspoint] version)
+PlatformIO env:        esp32_s3_epaper_397
+Board profile:       esp32-s3-devkitc-1-n16r8  (16 MB flash, 8 MB PSRAM)
+
+Tree state after clean_for_share:
+  Approx. size:      ~28 MB (28.0 MB measured, 2026-06-06)
+  Build artifacts:   NONE (.pio, .cache absent)
+  Generated sources: NONE (I18nKeys, I18nStrings, *.generated.h removed)
+  IDE settings:      NONE (.vscode, .idea, .cursor absent)
+  Vendor dumps:      NONE (.waveshare-ref, docs/ESP32-S3-ePaper-3.97 absent)
+
+Portable assets kept:
+  assets/icons/          music_player.png, voice_recorder.png, calendar.png
+  src/components/icons/  music.h, mic.h, calendar.h
+  open-x4-sdk/           SDK symlinks (required to build)
+
+To rebuild from this snapshot:
+  pip install -r scripts/requirements.txt
+  pio run -e esp32_s3_epaper_397
+  pio run -e esp32_s3_epaper_397 -t upload
+
+1.3.0-WS397-RC highlights:
+  - Crash screen: tap BOOT or Select for home; screenshot combo disabled on crash UI
+  - File transfer / Wi-Fi: safe activity results (no std::get on empty variant)
+  - EPUB bookmarks: no crash when list is empty (Back cancels correctly)
+  - MP3 probe: 4 KB stack buffer (fixes panic opening MP3)
+  - Home menu remembers last item; custom menu icons
+  - Music/recorder progress UI; MP3 VBR/Xing duration
+  - Pictures preview cache; README X4 vs WS397 comparison
+  - Post-RC: Lyra menu label truncation; Pictures tile cover clip (PNG/JPEG)
+
+Changes since 2026-05-20 snapshot (still 1.3.0-WS397-RC):
+  - Stability: upload path validation, init-order CI check, reader error screens, stack monitor
+  - Wi-Fi reconnect: safer teardown before STA reconnect (avoids udp_new_ip_type panic)
+  - Charging: AXP2101 ICC raised to 700 mA (500 mA fallback)
+  - Shake-delete confirm: OK/Back hint lines on confirmation popup
+  - Countdown: default 30 s, hold-accelerated adjust (1 s–3 days), alarm alert on finish
+  - Auto-sleep: blocks during active countdown/stopwatch, recording/playback, OPDS download
+  - Sleep/shutdown wallpapers: auto-rotate portrait/landscape (shared ImageFitUtil with picture viewer)
+
+Last known good compile: 2026-06-06 (esp32_s3_epaper_397; rebuild after restore)
+
+Not included in zip (download on first build):
+  PlatformIO toolchains and lib_deps (~hundreds of MB in .pio/)
+
+Keep .git separately if you use version control; clean script does not remove .git.
+
+Suggested zip name:
+  crosspoint-ws397-v1.3.0-WS397-RC-2026-06-06.zip
+
+Quick clean before zipping (Windows):
+  .\scripts\clean_for_share.ps1
+
+Quick clean (Linux / macOS):
+  ./scripts/clean_for_share.sh
+
+Do NOT include in zip:
+  .pio/   (~200+ MB — PlatformIO toolchains and libs)
+  .cache/ (~2+ GB — PlatformIO package cache, if present)

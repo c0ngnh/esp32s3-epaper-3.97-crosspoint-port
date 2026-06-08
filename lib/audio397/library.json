@@ -1,0 +1,10 @@
+{
+  "name": "audio397",
+  "version": "1.0.0",
+  "description": "ES8311 codec driver for Waveshare ESP32-S3 ePaper 3.97",
+  "platforms": "espressif32",
+  "frameworks": ["arduino"],
+  "build": {
+    "srcFilter": ["+<es8311.cpp>"]
+  }
+}
