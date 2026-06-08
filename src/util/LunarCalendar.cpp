@@ -1,5 +1,6 @@
 #include "LunarCalendar.h"
 
+#include <algorithm>
 #include <cstdio>
 #include <cstring>
 
@@ -131,6 +132,42 @@ bool internalGregorianToLunar(int year, int month, int day, LunarDate& out) {
   return false;
 }
 
+int internalIntercalaryMonth(const int lunarYear) {
+  if (lunarYear < kMinYear || lunarYear > kMaxYear) {
+    return 0;
+  }
+  return static_cast<int>((kLunarYearInfo[lunarYear - 1901] & 0xF00000) >> 20);
+}
+
+int lunarMonthToSlot(const int month, const bool leap, const int intercalary) {
+  int slot = month - 1;
+  if (intercalary > 0) {
+    if (month > intercalary) {
+      slot++;
+    }
+    if (month == intercalary && leap) {
+      slot++;
+    }
+  }
+  return slot;
+}
+
+void lunarSlotToMonth(const int slot, const int intercalary, int& month, bool& leap) {
+  leap = false;
+  if (intercalary <= 0) {
+    month = slot + 1;
+    return;
+  }
+  if (slot < intercalary) {
+    month = slot + 1;
+  } else if (slot == intercalary) {
+    month = intercalary;
+    leap = true;
+  } else {
+    month = slot;
+  }
+}
+
 }  // namespace
 
 int daysInGregorianMonth(const int year, const int month) {
@@ -182,6 +219,120 @@ bool lunarToGregorian(const int lunarYear, const int lunarMonth, const int lunar
           return true;
         }
       }
+    }
+  }
+  return false;
+}
+
+int daysInLunarMonth(const int lunarYear, const int lunarMonth, const bool leapMonth) {
+  if (lunarYear < kMinYear || lunarYear > kMaxYear || lunarMonth < 1 || lunarMonth > 12) {
+    return 30;
+  }
+  for (int day = 30; day >= 29; --day) {
+    int y = 0;
+    int m = 0;
+    int d = 0;
+    if (lunarToGregorian(lunarYear, lunarMonth, day, leapMonth, y, m, d)) {
+      return day;
+    }
+  }
+  return 30;
+}
+
+int intercalaryMonth(const int lunarYear) {
+  return internalIntercalaryMonth(lunarYear);
+}
+
+int lunarMonthSlotCount(const int lunarYear) {
+  return internalIntercalaryMonth(lunarYear) > 0 ? 13 : 12;
+}
+
+void normalizeLunarMonthLeap(const int lunarYear, int& month, bool& leap) {
+  month = std::clamp(month, 1, 12);
+  const int intercalary = internalIntercalaryMonth(lunarYear);
+  if (intercalary == 0) {
+    leap = false;
+  } else if (leap && month != intercalary) {
+    leap = false;
+  }
+}
+
+void bumpLunarMonth(int& lunarYear, int& month, bool& leap, const int delta) {
+  if (delta == 0) {
+    return;
+  }
+
+  int year = lunarYear;
+  normalizeLunarMonthLeap(year, month, leap);
+
+  int intercalary = internalIntercalaryMonth(year);
+  int slotCount = intercalary > 0 ? 13 : 12;
+  int slot = lunarMonthToSlot(month, leap, intercalary);
+  slot += delta;
+
+  while (slot < 0) {
+    year--;
+    if (year < kMinYear) {
+      year = kMinYear;
+      intercalary = internalIntercalaryMonth(year);
+      slot = 0;
+      break;
+    }
+    intercalary = internalIntercalaryMonth(year);
+    slotCount = intercalary > 0 ? 13 : 12;
+    slot += slotCount;
+  }
+
+  while (slot >= slotCount) {
+    year++;
+    if (year > kMaxYear) {
+      year = kMaxYear;
+      intercalary = internalIntercalaryMonth(year);
+      slotCount = intercalary > 0 ? 13 : 12;
+      slot = slotCount - 1;
+      break;
+    }
+    slot -= slotCount;
+    intercalary = internalIntercalaryMonth(year);
+    slotCount = intercalary > 0 ? 13 : 12;
+  }
+
+  intercalary = internalIntercalaryMonth(year);
+  lunarSlotToMonth(slot, intercalary, month, leap);
+  lunarYear = year;
+}
+
+bool resolveLunarToGregorian(const int lunarYear, const int lunarMonth, int& lunarDay, bool& leapMonth, int& outYear,
+                             int& outMonth, int& outDay) {
+  if (lunarYear < kMinYear || lunarYear > kMaxYear || lunarMonth < 1 || lunarMonth > 12) {
+    return false;
+  }
+
+  lunarDay = std::clamp(lunarDay, 1, 30);
+
+  auto tryConvert = [&](const int day, const bool leap) {
+    return lunarToGregorian(lunarYear, lunarMonth, day, leap, outYear, outMonth, outDay);
+  };
+
+  if (tryConvert(lunarDay, leapMonth)) {
+    return true;
+  }
+  if (tryConvert(lunarDay, !leapMonth)) {
+    leapMonth = !leapMonth;
+    return true;
+  }
+
+  const int maxDay = std::max(daysInLunarMonth(lunarYear, lunarMonth, leapMonth),
+                              daysInLunarMonth(lunarYear, lunarMonth, !leapMonth));
+  for (int day = std::min(lunarDay, maxDay); day >= 1; --day) {
+    if (tryConvert(day, leapMonth)) {
+      lunarDay = day;
+      return true;
+    }
+    if (tryConvert(day, !leapMonth)) {
+      lunarDay = day;
+      leapMonth = !leapMonth;
+      return true;
     }
   }
   return false;

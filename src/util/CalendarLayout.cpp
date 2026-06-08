@@ -55,7 +55,7 @@ void formatGregorianMmmDdYyyy(const int year, const int month, const int day, ch
 
 void formatLunarMmmDdYyyy(const LunarDate& lunar, char* buf, const size_t bufSize) {
   if (lunar.leapMonth) {
-    snprintf(buf, bufSize, "%s %02d, %d L", monthAbbrev(lunar.month), lunar.day, lunar.year);
+    snprintf(buf, bufSize, "%s L %02d, %d", monthAbbrev(lunar.month), lunar.day, lunar.year);
   } else {
     snprintf(buf, bufSize, "%s %02d, %d", monthAbbrev(lunar.month), lunar.day, lunar.year);
   }
@@ -342,8 +342,12 @@ void drawSourcePanel(const GfxRenderer& renderer, const Rect& panel, const Conve
     snprintf(monthBuf, sizeof(monthBuf), "%02d", state.gregMonth);
     snprintf(dayBuf, sizeof(dayBuf), "%02d", state.gregDay);
   } else {
-    snprintf(yearBuf, sizeof(yearBuf), "%d%s", state.lunarYear, state.lunarLeap ? " L" : "");
-    snprintf(monthBuf, sizeof(monthBuf), "%02d", state.lunarMonth);
+    snprintf(yearBuf, sizeof(yearBuf), "%d", state.lunarYear);
+    if (state.lunarLeap) {
+      snprintf(monthBuf, sizeof(monthBuf), "%02d L", state.lunarMonth);
+    } else {
+      snprintf(monthBuf, sizeof(monthBuf), "%02d", state.lunarMonth);
+    }
     snprintf(dayBuf, sizeof(dayBuf), "%02d", state.lunarDay);
   }
 
@@ -368,19 +372,30 @@ void drawResultPanel(const GfxRenderer& renderer, const Rect& panel, const Conve
                     EpdFontFamily::REGULAR);
 
   char bigDate[28];
+  int resultGregYear = state.gregYear;
+  int resultGregMonth = state.gregMonth;
+  int resultGregDay = state.gregDay;
   if (state.sourceIsGregorian) {
     LunarDate lunar{};
     LunarCalendar::gregorianToLunar(state.gregYear, state.gregMonth, state.gregDay, lunar);
     formatLunarMmmDdYyyy(lunar, bigDate, sizeof(bigDate));
   } else {
-    formatGregorianMmmDdYyyy(state.gregYear, state.gregMonth, state.gregDay, bigDate, sizeof(bigDate));
+    int lunarDay = state.lunarDay;
+    bool lunarLeap = state.lunarLeap;
+    if (!LunarCalendar::resolveLunarToGregorian(state.lunarYear, state.lunarMonth, lunarDay, lunarLeap,
+                                                resultGregYear, resultGregMonth, resultGregDay)) {
+      resultGregYear = state.gregYear;
+      resultGregMonth = state.gregMonth;
+      resultGregDay = state.gregDay;
+    }
+    formatGregorianMmmDdYyyy(resultGregYear, resultGregMonth, resultGregDay, bigDate, sizeof(bigDate));
   }
   const int bigDateY = panel.y + kPanelInnerPad + lineH10 + kPanelLineGap;
   renderer.drawText(NOTOSANS_14_FONT_ID, panel.x + pad, bigDateY,
                     renderer.truncatedText(NOTOSANS_14_FONT_ID, bigDate, panel.width - pad * 2).c_str(), true,
                     EpdFontFamily::BOLD);
 
-  const int wday = LunarCalendar::weekdaySun0(state.gregYear, state.gregMonth, state.gregDay);
+  const int wday = LunarCalendar::weekdaySun0(resultGregYear, resultGregMonth, resultGregDay);
   const int rowTop = bigDateY + lineH14 + kPanelLineGap;
   int rowIndex = 0;
 

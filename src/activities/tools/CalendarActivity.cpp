@@ -41,10 +41,24 @@ void CalendarActivity::syncGregorianFromLunar() {
   int y = gregYear;
   int m = gregMonth;
   int d = gregDay;
-  if (LunarCalendar::lunarToGregorian(lunarYear, lunarMonth, lunarDay, lunarLeap, y, m, d)) {
-    gregYear = y;
-    gregMonth = m;
-    gregDay = d;
+  int day = lunarDay;
+  bool leap = lunarLeap;
+  if (!LunarCalendar::resolveLunarToGregorian(lunarYear, lunarMonth, day, leap, y, m, d)) {
+    return;
+  }
+  lunarDay = day;
+  lunarLeap = leap;
+  gregYear = y;
+  gregMonth = m;
+  gregDay = d;
+
+  // Canonicalize lunar fields from the resolved Gregorian date (handles leap-month boundaries).
+  LunarDate lunar{};
+  if (LunarCalendar::gregorianToLunar(y, m, d, lunar)) {
+    lunarYear = lunar.year;
+    lunarMonth = lunar.month;
+    lunarDay = lunar.day;
+    lunarLeap = lunar.leapMonth;
   }
 }
 
@@ -203,23 +217,16 @@ void CalendarActivity::adjustSourceField(const int delta, const int step) {
         lunarYear += change;
         break;
       case 2:
-        lunarMonth += change;
-        while (lunarMonth < 1) {
-          lunarMonth += 12;
-          lunarYear--;
-        }
-        while (lunarMonth > 12) {
-          lunarMonth -= 12;
-          lunarYear++;
-        }
+        LunarCalendar::bumpLunarMonth(lunarYear, lunarMonth, lunarLeap, change);
         break;
       case 3: {
+        const int maxDay = LunarCalendar::daysInLunarMonth(lunarYear, lunarMonth, lunarLeap);
         int d = lunarDay + change;
         while (d < 1) {
-          d += 30;
+          d += maxDay;
         }
-        while (d > 30) {
-          d -= 30;
+        while (d > maxDay) {
+          d -= maxDay;
         }
         lunarDay = d;
         break;
@@ -228,8 +235,9 @@ void CalendarActivity::adjustSourceField(const int delta, const int step) {
         return;
     }
     lunarYear = std::clamp(lunarYear, LunarCalendar::kMinYear, LunarCalendar::kMaxYear);
-    lunarMonth = std::clamp(lunarMonth, 1, 12);
-    lunarDay = std::clamp(lunarDay, 1, 30);
+    LunarCalendar::normalizeLunarMonthLeap(lunarYear, lunarMonth, lunarLeap);
+    const int maxDay = LunarCalendar::daysInLunarMonth(lunarYear, lunarMonth, lunarLeap);
+    lunarDay = std::clamp(lunarDay, 1, maxDay);
     syncGregorianFromLunar();
     clampGregorian(gregYear, gregMonth, gregDay);
   }
