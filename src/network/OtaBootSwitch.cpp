@@ -14,8 +14,9 @@ uint32_t computeSeqCrc(uint32_t seq) {
 bool switchTo(const esp_partition_t* dest) {
   if (!dest) return false;
 
-  const esp_partition_t* otadata =
-      esp_partition_find_first(ESP_PARTITION_TYPE_DATA, ESP_PARTITION_SUBTYPE_DATA_OTA, nullptr);
+  const esp_partition_t* otadata = esp_partition_find_first(
+      static_cast<esp_partition_type_t>(ESP_PARTITION_TYPE_DATA),
+      static_cast<esp_partition_subtype_t>(ESP_PARTITION_SUBTYPE_DATA_OTA), nullptr);
   if (!otadata) {
     LOG_ERR("BOOT", "otadata partition not found");
     return false;

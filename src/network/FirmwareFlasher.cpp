@@ -339,7 +339,8 @@ const esp_partition_t* getUpdatePartition() {
   }
 
   // Single-bank layout (397): only app0/ota_0 — update in place.
-  dest = esp_partition_find_first(ESP_PARTITION_TYPE_APP, ESP_PARTITION_SUBTYPE_APP_OTA_0, nullptr);
+  dest = esp_partition_find_first(static_cast<esp_partition_type_t>(ESP_PARTITION_TYPE_APP),
+                                  static_cast<esp_partition_subtype_t>(ESP_PARTITION_SUBTYPE_APP_OTA_0), nullptr);
   if (!dest) {
     LOG_ERR("FLASH", "no OTA app partition found");
   }
@@ -348,7 +349,9 @@ const esp_partition_t* getUpdatePartition() {
 
 namespace {
 bool hasOtadataPartition() {
-  return esp_partition_find_first(ESP_PARTITION_TYPE_DATA, ESP_PARTITION_SUBTYPE_DATA_OTA, nullptr) != nullptr;
+  return esp_partition_find_first(static_cast<esp_partition_type_t>(ESP_PARTITION_TYPE_DATA),
+                                  static_cast<esp_partition_subtype_t>(ESP_PARTITION_SUBTYPE_DATA_OTA),
+                                  nullptr) != nullptr;
 }
 }  // namespace
 

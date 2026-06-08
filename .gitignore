@@ -16,7 +16,7 @@ docs/ESP32-S3-ePaper-3.97/
 platformio.local.ini
 
 # Generated at build time (pre: scripts)
-src/network/html/*.generated.h
+src/network/html/**/*.generated.h
 lib/I18n/I18nKeys.h
 lib/I18n/I18nStrings.h
 lib/I18n/I18nStrings.cpp

@@ -36,6 +36,20 @@ from pathlib import Path
 from typing import Dict, List, Optional, Set, Tuple
 
 
+def _log(*args, sep: str = " ", end: str = "\n", file=None) -> None:
+    """Print ASCII-only to stdout so PlatformIO on Windows cp1252 consoles never blocks."""
+    if file is not None:
+        text = sep.join(str(a) for a in args)
+        safe = text.encode("ascii", errors="replace").decode("ascii")
+        file.write(safe + end)
+        file.flush()
+        return
+    text = sep.join(str(a) for a in args)
+    safe = text.encode("ascii", errors="replace").decode("ascii")
+    sys.stdout.write(safe + end)
+    sys.stdout.flush()
+
+
 # ---------------------------------------------------------------------------
 # YAML file reading (simple key: "value" format, no PyYAML dependency)
 # ---------------------------------------------------------------------------
@@ -218,7 +232,7 @@ def load_translations(
                 value = english_data[key]
                 inherited_sets[lang_idx].add(key)
                 if verbose:
-                    print(
+                    _log(
                         f"  INFO: '{key}' missing in {language_codes[lang_idx]}, using English fallback"
                     )
             row.append(value)
@@ -233,12 +247,12 @@ def load_translations(
         if extra:
             lang_code = data.get("_language_code", fname)
             if verbose:
-                print(
+                _log(
                     f"  WARNING: {lang_code} has keys not in English: {', '.join(extra)}"
                 )
 
     if verbose:
-        print(f"Loaded {len(language_codes)} languages, {len(string_keys)} string keys")
+        _log(f"Loaded {len(language_codes)} languages, {len(string_keys)} string keys")
     return language_codes, language_names, string_keys, translations, inherited_sets
 
 
@@ -731,20 +745,17 @@ def _print_language_table(
 ) -> None:
     """Print a per-language summary table."""
     total = len(string_keys)
-    headers = ("Language", "Code", "Own", "Fallback", "Unused", "Data (B)")
+    headers = ("Lang", "Own", "Fallback", "Unused", "Data (B)")
 
     rows = []
-    for code, name, inherited, size in zip(
-        language_codes, language_names, inherited_sets, data_sizes
-    ):
+    for code, inherited, size in zip(language_codes, inherited_sets, data_sizes):
         own = total - len(inherited)
         fallback = len(inherited)
-        # strings this language translated but the code never calls
         unused = len(unused_keys - inherited)
-        rows.append((name, code, str(own), str(fallback), str(unused), str(size)))
+        rows.append((code, str(own), str(fallback), str(unused), str(size)))
 
     # EN first, then alphabetically by ISO code
-    rows.sort(key=lambda r: (0 if r[1] == "EN" else 1, r[1]))
+    rows.sort(key=lambda r: (0 if r[0] == "EN" else 1, r[0]))
 
     col_widths = [len(h) for h in headers]
     for row in rows:
@@ -754,27 +765,20 @@ def _print_language_table(
     fmt = "  ".join(f"{{:<{w}}}" for w in col_widths)
     sep = "  ".join("-" * w for w in col_widths)
 
-    def _safe_print(line: str) -> None:
-        print(
-            line.encode(sys.stdout.encoding or "utf-8", errors="replace").decode(
-                sys.stdout.encoding or "utf-8", errors="replace"
-            )
-        )
-
-    _safe_print(fmt.format(*headers))
-    _safe_print(sep)
+    _log(fmt.format(*headers))
+    _log(sep)
     for row in rows:
-        _safe_print(fmt.format(*row))
+        _log(fmt.format(*row))
     used = total - len(unused_keys)
     dedup_size = sum(data_sizes)
     n_lang = len(rows)
     n_keys = len(string_keys)
     offset_table_size = n_lang * n_keys * 2
     current_total = dedup_size + offset_table_size
-    print(
+    _log(
         f"\n  Total: {total}  |  Used in code: {used}  |  Never used: {len(unused_keys)}"
     )
-    print(
+    _log(
         f"  Flash: {dedup_size:>7,} B strings (deduped)  +  {offset_table_size:>6,} B offset tables"
         f"  =  {current_total:>7,} B"
     )
@@ -810,7 +814,7 @@ def _write_file(path: str, lines: List[str], verbose: bool = False) -> None:
         f.write("\n".join(lines))
         f.write("\n")
     if verbose:
-        print(f"Generated: {path}")
+        _log(f"Generated: {path}")
 
 
 # ---------------------------------------------------------------------------
@@ -843,17 +847,17 @@ def main(
         src_dirs = default_src_dirs
 
     if not os.path.isdir(translations_dir):
-        print(f"Error: Translations directory not found: {translations_dir}")
+        _log(f"Error: Translations directory not found: {translations_dir}", file=sys.stderr)
         sys.exit(1)
 
     if not os.path.isdir(output_dir):
-        print(f"Error: Output directory not found: {output_dir}")
+        _log(f"Error: Output directory not found: {output_dir}", file=sys.stderr)
         sys.exit(1)
 
     if verbose:
-        print(f"Reading translations from: {translations_dir}")
-        print(f"Output directory: {output_dir}")
-        print()
+        _log(f"Reading translations from: {translations_dir}")
+        _log(f"Output directory: {output_dir}")
+        _log()
 
     try:
         languages, language_names, string_keys, translations, inherited_sets = (
@@ -872,12 +876,12 @@ def main(
         # --- Missing-string detection (used in code but absent from English) ---
         missing_keys = sorted(used_keys - set(string_keys))
         if missing_keys:
-            print(
+            _log(
                 f"\n  CRITICAL: {len(missing_keys)} string(s) used in source but missing from english.yaml:"
             )
             for key in missing_keys:
-                print(f"    - {key}")
-            print()
+                _log(f"    - {key}")
+            _log()
             sys.exit(1)
 
         # Compute per-language data blob sizes (after dedup).
@@ -905,13 +909,13 @@ def main(
             unused_set,
             data_sizes,
         )
-        print()
+        _log()
 
         if verbose and unused_set:
-            print(f"  Unused keys ({len(unused_set)}):")
+            _log(f"  Unused keys ({len(unused_set)}):")
             for key in sorted(unused_set):
-                print(f"    - {key}")
-            print()
+                _log(f"    - {key}")
+            _log()
 
         if unused_set and strip_unused:
             string_keys = [k for k in string_keys if k not in unused_set]
@@ -919,7 +923,7 @@ def main(
                 k: v for k, v in translations.items() if k not in unused_set
             }
             inherited_sets = [s - unused_set for s in inherited_sets]
-            print(f"  Stripping {len(unused_set)} unused string(s) from output.")
+            _log(f"  Stripping {len(unused_set)} unused string(s) from output.")
 
         out = Path(output_dir)
         generate_keys_header(
@@ -937,17 +941,17 @@ def main(
             verbose,
         )
 
-        print()
-        print("Code generation complete!")
-        print(f"  Languages: {len(languages)}")
-        print(f"  String keys: {len(string_keys)}")
+        _log()
+        _log("Code generation complete!")
+        _log(f"  Languages: {len(languages)}")
+        _log(f"  String keys: {len(string_keys)}")
         if unused_set and not strip_unused:
-            print(
+            _log(
                 f"  Unused keys: {len(unused_set)} (pass --strip-unused to remove them)"
             )
 
     except Exception as e:
-        print(f"\nError: {e}")
+        _log(f"\nError: {e}", file=sys.stderr)
         sys.exit(1)
 
 

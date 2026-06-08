@@ -7,7 +7,7 @@ Portable **PlatformIO** project for the [Waveshare ESP32-S3-ePaper-3.97](https:/
 | Field | Value |
 |-------|--------|
 | **Firmware version** | `1.3.0-WS397-RC` (Waveshare 3.97 release candidate) |
-| **Last verified build** | **2026-06-06** (`pio run -e esp32_s3_epaper_397`) |
+| **Last verified build** | **2026-06-08** (`pio run -e esp32_s3_epaper_397`) |
 | **Snapshot / backup** | See [BACKUP-SNAPSHOT.txt](BACKUP-SNAPSHOT.txt) |
 | **PlatformIO environment** | `esp32_s3_epaper_397` |
 
@@ -254,6 +254,8 @@ You can study or merge **source ideas** between projects (both are open source),
 
 Requires [PlatformIO](https://platformio.org/) and internet on **first** build.
 
+**Who needs this section?** Only if you compile the firmware yourself. If you flash a pre-built file from [Releases](#flash-firmware), you do **not** need PlatformIO, Python, or any UTF-8 terminal setup.
+
 ```bash
 cd esp32s3-epaper-3.97-crosspoint-port
 pip install -r scripts/requirements.txt
@@ -261,6 +263,10 @@ pio run -e esp32_s3_epaper_397
 pio run -e esp32_s3_epaper_397 -t upload
 pio device monitor -b 115200
 ```
+
+**Windows note:** You do **not** need to set `PYTHONIOENCODING=utf-8` for normal builds. The pre-build script `scripts/gen_i18n.py` prints ASCII-only logs so PlatformIO on Windows does not hang on Cyrillic language names. (Release users who only flash pre-built `.bin` files never run this step.)
+
+**Do not commit build output.** Local folders `.pio/`, `.cache/`, and generated files under `lib/I18n/` and `src/network/html/` are listed in [.gitignore](.gitignore) — they stay on your machine only.
 
 Pre-build scripts (automatic on `pio run`):
 
