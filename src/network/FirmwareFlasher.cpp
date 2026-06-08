@@ -26,6 +26,59 @@ constexpr size_t SHA_TRAILER = 32;
 constexpr uint8_t CHECKSUM_SEED = 0xEF;
 constexpr size_t HEADER_SIZE = 24;
 constexpr size_t SEG_HEADER_SIZE = 8;
+constexpr size_t PARTITION_TABLE_OFFSET = 0x8000;
+constexpr size_t MERGED_APP_OFFSET = 0x10000;
+constexpr size_t PARTITION_ENTRY_SIZE = 32;
+constexpr uint8_t ESP_PARTITION_TYPE_DATA = 0x01;
+constexpr uint8_t ESP_PARTITION_SUBTYPE_DATA_NVS = 0x02;
+}  // namespace
+
+namespace {
+bool readAtOffset(HalFile& file, size_t offset, void* dest, size_t len) {
+  if (!file.seek(offset)) {
+    return false;
+  }
+  return file.read(static_cast<uint8_t*>(dest), len) == static_cast<int>(len);
+}
+
+bool looksLikeNvsPartitionEntry(const uint8_t entry[PARTITION_ENTRY_SIZE]) {
+  if (std::memcmp(entry, "nvs", 3) != 0) {
+    return false;
+  }
+  if (entry[16] != ESP_PARTITION_TYPE_DATA || entry[17] != ESP_PARTITION_SUBTYPE_DATA_NVS) {
+    return false;
+  }
+  uint32_t offset = 0;
+  uint32_t size = 0;
+  std::memcpy(&offset, entry + 18, sizeof(offset));
+  std::memcpy(&size, entry + 22, sizeof(size));
+  return offset == 0x9000 && size == 0x5000;
+}
+
+bool looksLikeMergedFactoryImage(HalFile& file, size_t fileSize) {
+  if (fileSize < MERGED_APP_OFFSET + 1) {
+    return false;
+  }
+
+  uint8_t partitionEntry[PARTITION_ENTRY_SIZE] = {};
+  uint8_t appMagic = 0;
+  if (!readAtOffset(file, PARTITION_TABLE_OFFSET, partitionEntry, sizeof(partitionEntry))) {
+    return false;
+  }
+  if (!readAtOffset(file, MERGED_APP_OFFSET, &appMagic, sizeof(appMagic))) {
+    return false;
+  }
+
+  return looksLikeNvsPartitionEntry(partitionEntry) && appMagic == ESP_IMAGE_MAGIC;
+}
+
+bool looksLikeAppImageHeader(const uint8_t header[HEADER_SIZE]) {
+  if (header[0] != ESP_IMAGE_MAGIC) {
+    return false;
+  }
+  const uint8_t segCount = header[1];
+  return segCount >= 1 && segCount <= 16;
+}
 }  // namespace
 
 const char* resultName(Result r) {
@@ -48,6 +101,8 @@ const char* resultName(Result r) {
       return "BAD_SHA";
     case Result::BAD_SIZE:
       return "BAD_SIZE";
+    case Result::WRONG_IMAGE_TYPE:
+      return "WRONG_IMAGE_TYPE";
     case Result::NO_PARTITION:
       return "NO_PARTITION";
     case Result::OOM:
@@ -226,6 +281,57 @@ Result validateImageFile(const char* sdPath, size_t partitionSize) {
   return Result::OK;
 }
 
+ImageKind classifyFirmwareFile(const char* sdPath) {
+  HalFile file;
+  if (!Storage.openFileForRead("FLASH", sdPath, file) || !file) {
+    LOG_ERR("FLASH", "classify: open failed: %s", sdPath);
+    return ImageKind::INVALID;
+  }
+
+  const size_t fileSize = file.fileSize();
+  if (fileSize < MIN_FIRMWARE_SIZE) {
+    file.close();
+    return ImageKind::INVALID;
+  }
+
+  if (looksLikeMergedFactoryImage(file, fileSize)) {
+    LOG_ERR("FLASH", "classify: merged USB full-flash image (partition table @0x8000)");
+    file.close();
+    return ImageKind::MERGED_FACTORY;
+  }
+
+  uint8_t header[HEADER_SIZE] = {};
+  if (!readAtOffset(file, 0, header, sizeof(header))) {
+    file.close();
+    return ImageKind::INVALID;
+  }
+
+  if (!looksLikeAppImageHeader(header)) {
+    LOG_ERR("FLASH", "classify: not an app update image (magic=0x%02X)", header[0]);
+    file.close();
+    return ImageKind::INVALID;
+  }
+
+  file.close();
+  return ImageKind::APP_UPDATE;
+}
+
+bool isSdUpdateImage(const char* sdPath) {
+  return classifyFirmwareFile(sdPath) == ImageKind::APP_UPDATE;
+}
+
+Result validateSdUpdateImage(const char* sdPath, size_t partitionSize) {
+  switch (classifyFirmwareFile(sdPath)) {
+    case ImageKind::MERGED_FACTORY:
+      return Result::WRONG_IMAGE_TYPE;
+    case ImageKind::INVALID:
+      return Result::BAD_MAGIC;
+    case ImageKind::APP_UPDATE:
+      break;
+  }
+  return validateImageFile(sdPath, partitionSize);
+}
+
 const esp_partition_t* getUpdatePartition() {
   const esp_partition_t* dest = esp_ota_get_next_update_partition(nullptr);
   if (dest) {
@@ -261,7 +367,7 @@ Result flashFromSdPath(const char* sdPath, ProgressCb onProgress, void* ctx, boo
   // prompt), skip the redundant integrity scan. We still keep the partition
   // lookup so the rest of the flashing path stays unchanged.
   if (!alreadyValidated) {
-    const Result validateRes = validateImageFile(sdPath, dest->size);
+    const Result validateRes = validateSdUpdateImage(sdPath, dest->size);
     if (validateRes != Result::OK) {
       LOG_ERR("FLASH", "image validation failed: %s", resultName(validateRes));
       return validateRes;

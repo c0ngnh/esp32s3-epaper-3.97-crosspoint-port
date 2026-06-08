@@ -21,8 +21,8 @@ Each release includes two `.bin` files. **Use the correct one for your update me
 
 | Release file | Use for |
 |--------------|---------|
-| **`crosspoint-397-<version>.bin`** | **USB flash** via [ESP Launchpad](https://espressif.github.io/esp-launchpad/) at address **`0x0`** |
-| **`crosspoint-397-<version>-firmware.bin`** | **SD card update** on the device (Settings → System → SD Card Firmware Update) |
+| **`crosspoint-397-<version>-usb-full.bin`** | **USB flash** via [ESP Launchpad](https://espressif.github.io/esp-launchpad/) at address **`0x0`** |
+| **`crosspoint-397-<version>-sd-update.bin`** | **SD card update** on the device (Settings → System → SD Card Firmware Update) |
 
 **Board:** [Waveshare ESP32-S3-ePaper-3.97](https://www.waveshare.com/esp32-s3-epaper-3.97.htm) only — **not** Xteink X4 or other ESP boards.
 
@@ -31,10 +31,10 @@ Each release includes two `.bin` files. **Use the correct one for your update me
 **Requirements:** **Google Chrome** or **Microsoft Edge** (Web Serial / WebUSB; Safari and Firefox are not supported yet), USB-C data cable.
 
 1. Insert a **FAT32** microSD card, connect the board via USB-C (hold **BOOT** if the serial port does not appear).
-2. Download **`crosspoint-397-<version>.bin`** from the release page.
+2. Download **`crosspoint-397-<version>-usb-full.bin`** from the release page.
 3. Open **[ESP Launchpad](https://espressif.github.io/esp-launchpad/)** in Chrome or Edge.
 4. Scroll to **“Choose your own built firmware image from the local storage to flash and use.”** (DIY mode).
-5. Click **Add File** and select `crosspoint-397-<version>.bin` with flash address **`0x0`**.
+5. Click **Add File** and select `crosspoint-397-<version>-usb-full.bin` with flash address **`0x0`**.
 6. Click **Connect** in the top menu and pick your board’s USB serial port. If no port appears, unplug USB, hold **BOOT**, plug in again, then retry **Connect**.
 7. Leave **Flashing baud rate** at **921600** (or lower to **460800** if flashing fails).
 8. Click **Program** and wait until the console shows success.
@@ -44,14 +44,16 @@ Each release includes two `.bin` files. **Use the correct one for your update me
 
 Use this when the device already runs CrossPoint and you want to update without a PC.
 
-1. Download **`crosspoint-397-<version>-firmware.bin`** from the release page — **not** the merged `crosspoint-397-<version>.bin` file.
-2. Copy it to your **FAT32** microSD card (any folder; e.g. `/firmware.bin` or `/updates/crosspoint-397-<version>-firmware.bin`).
+1. Download **`crosspoint-397-<version>-sd-update.bin`** from the release page — **not** the `-usb-full.bin` file.
+2. Copy it to your **FAT32** microSD card (any folder; e.g. `/crosspoint-397-<version>-sd-update.bin`).
 3. Insert the SD card and boot the device.
 4. Go to **Settings → System → SD Card Firmware Update**.
 5. Select the `.bin` file, confirm the update, and wait for the progress bar to finish. **Do not power off** during the update.
 6. The device restarts automatically when done.
 
-**Recovery mode:** If the device will not boot normally, power on while holding **Up + PWR**. The SD firmware picker opens directly — select the same **`crosspoint-397-<version>-firmware.bin`** file from the card.
+The device validates the file before flashing. If you pick the USB full image by mistake, it shows **“Use -sd-update.bin, not USB full image”**.
+
+**Recovery mode:** If the device will not boot normally, power on while holding **Up + PWR**. The SD firmware picker opens directly — select the same **`crosspoint-397-<version>-sd-update.bin`** file from the card.
 
 **After flashing (either method)**
 
@@ -65,7 +67,7 @@ Use this when the device already runs CrossPoint and you want to update without 
 | No serial port (USB) | Hold **BOOT** while connecting USB; try another cable or USB port |
 | Flash fails / timeout (USB) | Lower baud rate to **460800** or **115200** |
 | Blank screen after flash | **Reset Device** in Launchpad, or power-cycle the board |
-| SD update rejects the file | You likely picked the merged `crosspoint-397-<version>.bin` — use **`-firmware.bin`** instead |
+| SD update rejects the file | You likely picked **`-usb-full.bin`** — use **`-sd-update.bin`** instead |
 | Wrong firmware on wrong board | Only use releases from **this** repo on the Waveshare 3.97 — X4 `.bin` files will not work |
 
 ---

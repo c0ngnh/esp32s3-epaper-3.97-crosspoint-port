@@ -51,8 +51,8 @@ jobs:
             echo "Missing merged firmware image: $MERGED_BIN"
             exit 1
           fi
-          cp "$MERGED_BIN" "release-assets/crosspoint-397-${VERSION}.bin"
-          cp "$BUILD_DIR/firmware.bin" "release-assets/crosspoint-397-${VERSION}-firmware.bin"
+          cp "$MERGED_BIN" "release-assets/crosspoint-397-${VERSION}-usb-full.bin"
+          cp "$BUILD_DIR/firmware.bin" "release-assets/crosspoint-397-${VERSION}-sd-update.bin"
           cp "$BUILD_DIR/firmware.elf" "release-assets/crosspoint-397-${VERSION}-firmware.elf"
           cp "$BUILD_DIR/firmware.map" "release-assets/crosspoint-397-${VERSION}-firmware.map"
 

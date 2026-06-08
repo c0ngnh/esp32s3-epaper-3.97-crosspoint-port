@@ -16,6 +16,12 @@
 
 namespace firmware_flash {
 
+enum class ImageKind {
+  APP_UPDATE,      // app-only image suitable for SD / OTA partition write
+  MERGED_FACTORY,  // USB full-flash image (bootloader + partitions + app)
+  INVALID,         // unreadable or not a CrossPoint/ESP firmware image
+};
+
 enum class Result {
   OK,
   OPEN_FAIL,
@@ -26,6 +32,7 @@ enum class Result {
   BAD_CHECKSUM,  // ESP image XOR checksum mismatch
   BAD_SHA,       // SHA256 trailer mismatch (hash_appended images)
   BAD_SIZE,      // body+pad+sha length doesn't match file size
+  WRONG_IMAGE_TYPE,  // merged USB full-flash image, not SD app update
   NO_PARTITION,
   OOM,
   READ_FAIL,
@@ -60,6 +67,15 @@ Result flashFromSdPath(const char* sdPath, ProgressCb onProgress, void* ctx, boo
 // lookup). Streams the file in CHUNK-sized reads; the file is rewound on
 // success so the caller can immediately reread it for flashing.
 Result validateImageFile(const char* sdPath, size_t partitionSize);
+
+// Classify a .bin before SD update: rejects merged USB full-flash images.
+ImageKind classifyFirmwareFile(const char* sdPath);
+
+// True when classifyFirmwareFile() reports APP_UPDATE.
+bool isSdUpdateImage(const char* sdPath);
+
+// classifyFirmwareFile + validateImageFile for SD-card update entry points.
+Result validateSdUpdateImage(const char* sdPath, size_t partitionSize);
 
 // Destination for SD/OTA writes: next OTA slot when dual-bank, else in-place app0.
 const esp_partition_t* getUpdatePartition();
