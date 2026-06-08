@@ -246,6 +246,8 @@ class CrossPointSettings {
   uint8_t dstEnabled = 0;
   // Device speaker volume (0–100), shared by music player, recording playback, etc.
   uint8_t outputVolume = 70;
+  // Calendar month view: show ISO week-number column (1 = show, 0 = hide).
+  uint8_t calendarShowWeekNumbers = 1;
 #endif
 
   ~CrossPointSettings() = default;

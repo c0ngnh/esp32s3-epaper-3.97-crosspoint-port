@@ -16,6 +16,7 @@
 #include "components/UITheme.h"
 #include "util/CalendarLayout.h"
 #include "util/LunarCalendar.h"
+#include "CrossPointSettings.h"
 
 namespace {
 
@@ -525,6 +526,7 @@ void CalendarActivity::showMonth() {
     state.todayMonth = today.month;
     state.todayDay = today.day;
   }
+  state.showWeekNumbers = SETTINGS.calendarShowWeekNumbers != 0;
   CalendarLayout::drawMonthView(renderer, state);
 
   const auto labels = mappedInput.mapLabels(tr(STR_BACK), tr(STR_CALENDAR_CONVERT), tr(STR_DIR_UP), tr(STR_DIR_DOWN));

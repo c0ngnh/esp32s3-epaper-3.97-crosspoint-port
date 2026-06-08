@@ -192,6 +192,8 @@ inline std::vector<SettingInfo> getSettingsList(const SdCardFontRegistry* regist
 #if defined(BOARD_ESP32_S3_EPAPER_397)
         SettingInfo::Toggle(StrId::STR_AUTO_TIME_SYNC, &CrossPointSettings::autoTimeSync, "autoTimeSync",
                             StrId::STR_CAT_SYSTEM),
+        SettingInfo::Toggle(StrId::STR_CALENDAR_SHOW_WEEK_NUMBERS, &CrossPointSettings::calendarShowWeekNumbers,
+                            "calendarShowWeekNumbers", StrId::STR_CAT_SYSTEM),
 #endif
 
         // --- KOReader Sync (web-only, uses KOReaderCredentialStore) ---

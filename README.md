@@ -2,11 +2,11 @@
 
 Portable **PlatformIO** project for the [Waveshare ESP32-S3-ePaper-3.97](https://www.waveshare.com/esp32-s3-epaper-3.97.htm): a **CrossPoint Reader** port for this board — EPUB reading, Wi-Fi file transfer, settings, OTA, media apps, calendar, alarms, IMU gestures, RTC/NTP, and 397-specific hardware support. For how this differs from official **Xteink X4** firmware, see [Comparison with mainstream CrossPoint Reader](#comparison-with-mainstream-crosspoint-reader).
 
-**Release candidate `1.3.2-WS397-RC`** — lunar calendar leap-month stepping, conversion sync fixes, and clearer leap-month display since `1.3.1-WS397-RC`.
+**Release candidate `1.3.3-WS397-RC`** — ISO week numbers, Monday-first month grid, and month-view layout polish since `1.3.2-WS397-RC`.
 
 | Field | Value |
 |-------|--------|
-| **Firmware version** | `1.3.2-WS397-RC` (Waveshare 3.97 release candidate) |
+| **Firmware version** | `1.3.3-WS397-RC` (Waveshare 3.97 release candidate) |
 | **Last verified build** | **2026-06-08** (`pio run -e esp32_s3_epaper_397`) |
 | **Snapshot / backup** | See [BACKUP-SNAPSHOT.txt](BACKUP-SNAPSHOT.txt) |
 | **PlatformIO environment** | `esp32_s3_epaper_397` |

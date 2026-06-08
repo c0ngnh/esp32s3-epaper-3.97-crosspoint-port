@@ -16,7 +16,39 @@ namespace CalendarLayout {
 namespace {
 
 constexpr int kWeekdayLabelCount = 7;
-constexpr const char* kWeekdayLabels[kWeekdayLabelCount] = {"Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"};
+constexpr const char* kWeekdayLabels[kWeekdayLabelCount] = {"Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"};
+constexpr int kWeekColumnWidth = 34;
+
+bool monthGridCellHasDay(const int row, const int col, const int firstMon0, const int daysInMonth) {
+  const int idx = row * 7 + col;
+  if (idx < firstMon0) {
+    return false;
+  }
+  const int day = idx - firstMon0 + 1;
+  return day >= 1 && day <= daysInMonth;
+}
+
+// Saturday weekend fill (~20%).
+void fillRectSaturdayDither(const GfxRenderer& renderer, const int x, const int y, const int width, const int height) {
+  for (int py = y; py < y + height; ++py) {
+    for (int px = x; px < x + width; ++px) {
+      if ((px % 5) == (py % 5)) {
+        renderer.drawPixel(px, py, true);
+      }
+    }
+  }
+}
+
+// Sunday weekend fill (~33%): lighter than old DarkGray, slightly stronger than Saturday.
+void fillRectSundayDither(const GfxRenderer& renderer, const int x, const int y, const int width, const int height) {
+  for (int py = y; py < y + height; ++py) {
+    for (int px = x; px < x + width; ++px) {
+      if ((px % 3) == (py % 3)) {
+        renderer.drawPixel(px, py, true);
+      }
+    }
+  }
+}
 
 constexpr const char* kMonthNames[13] = {"",     "January", "February", "March",  "April",   "May",      "June",
                                          "July", "August",  "September", "October", "November", "December"};
@@ -154,20 +186,19 @@ void drawDateDetailCard(const GfxRenderer& renderer, const Rect& card, const int
   const auto& pad = UITheme::getInstance().getMetrics().contentSidePadding;
   const int midX = card.x + card.width / 2;
 
-  constexpr int kLabelFont = UI_10_FONT_ID;
-  constexpr int kDateFont = UI_10_FONT_ID;
-  constexpr int kWeekdayFont = NOTOSANS_12_FONT_ID;
+  constexpr int kLabelFont = UI_12_FONT_ID;
+  constexpr int kDateFont = NOTOSANS_14_FONT_ID;
+  constexpr int kWeekdayFont = NOTOSANS_14_FONT_ID;
 
   const int labelLineH = renderer.getLineHeight(kLabelFont);
-  const int dateLineH = renderer.getLineHeight(kDateFont);
   const int weekdayLineH = renderer.getLineHeight(kWeekdayFont);
 
-  constexpr int kWeekdayStripH = 28;
+  constexpr int kWeekdayStripH = 34;
   const int weekdayBarTop = card.y + card.height - kWeekdayStripH;
-  const int datesAreaBottom = weekdayBarTop - 6;
+  const int datesAreaBottom = weekdayBarTop - 4;
 
-  const int labelY = card.y + 8;
-  const int valueY = labelY + labelLineH + 6;
+  const int labelY = card.y + 6;
+  const int valueY = labelY + labelLineH + 4;
   const int weekdayY = weekdayBarTop + (kWeekdayStripH - weekdayLineH) / 2;
 
   renderer.drawLine(midX, card.y + 6, midX, datesAreaBottom, 1, true);
@@ -176,13 +207,18 @@ void drawDateDetailCard(const GfxRenderer& renderer, const Rect& card, const int
   renderer.drawText(kLabelFont, card.x + pad, labelY, tr(STR_CALENDAR_GREGORIAN), true, EpdFontFamily::REGULAR);
   renderer.drawText(kLabelFont, midX + pad, labelY, tr(STR_CALENDAR_LUNAR), true, EpdFontFamily::REGULAR);
 
-  renderer.drawText(kDateFont, card.x + pad, valueY, gregLine, true, EpdFontFamily::REGULAR);
-  renderer.drawText(kDateFont, midX + pad, valueY, lunarLine, true, EpdFontFamily::REGULAR);
+  renderer.drawText(kDateFont, card.x + pad, valueY, gregLine, true, EpdFontFamily::BOLD);
+  renderer.drawText(kDateFont, midX + pad, valueY, lunarLine, true, EpdFontFamily::BOLD);
 
   const char* wdayText = weekdayName(wday);
-  const int wdayW = renderer.getTextWidth(kWeekdayFont, wdayText, EpdFontFamily::REGULAR);
-  const int wdayX = card.x + (card.width - wdayW) / 2;
-  renderer.drawText(kWeekdayFont, wdayX, weekdayY, wdayText, true, EpdFontFamily::REGULAR);
+  int isoYear = 0;
+  int isoWeek = 0;
+  LunarCalendar::isoWeekAndYear(year, month, day, isoYear, isoWeek);
+  char weekLine[40];
+  snprintf(weekLine, sizeof(weekLine), "%s · %s %d", wdayText, tr(STR_CALENDAR_WEEK), isoWeek);
+  const int weekLineW = renderer.getTextWidth(kWeekdayFont, weekLine, EpdFontFamily::REGULAR);
+  const int weekLineX = card.x + (card.width - weekLineW) / 2;
+  renderer.drawText(kWeekdayFont, weekLineX, weekdayY, weekLine, true, EpdFontFamily::BOLD);
 }
 
 int todayStripHeight(const GfxRenderer& renderer) {
@@ -497,7 +533,7 @@ void drawMonthView(const GfxRenderer& renderer, const MonthViewState& state) {
 
   const int contentTop = headerBottom + m.verticalSpacing;
   const int hintsTop = pageH - m.buttonHintsHeight - m.verticalSpacing;
-  constexpr int kDetailH = 96;
+  constexpr int kDetailH = 112;
   const int titleH = 46;
   const int detailTop = hintsTop - kDetailH - m.verticalSpacing;
   const int gridTop = contentTop + titleH + m.verticalSpacing;
@@ -512,38 +548,93 @@ void drawMonthView(const GfxRenderer& renderer, const MonthViewState& state) {
 
   const int innerPad = 10;
   const int weekdayH = 24;
+  const int weekColW = state.showWeekNumbers ? kWeekColumnWidth : 0;
   const Rect weekdayRow{gridCard.x + innerPad, gridCard.y + innerPad, gridCard.width - innerPad * 2, weekdayH};
-  renderer.fillRectDither(weekdayRow.x, weekdayRow.y, weekdayRow.width, weekdayRow.height, Color::LightGray);
-
-  const int cellW = weekdayRow.width / kWeekdayLabelCount;
-  for (int i = 0; i < kWeekdayLabelCount; ++i) {
-    const Rect labelCell{weekdayRow.x + i * cellW, weekdayRow.y, cellW, weekdayRow.height};
-    drawCenteredInCell(renderer, labelCell, UI_10_FONT_ID, kWeekdayLabels[i], false, EpdFontFamily::REGULAR);
-  }
-
-  const int daysTop = weekdayRow.y + weekdayRow.height + 4;
+  const int daysLeft = weekdayRow.x + weekColW;
+  const int daysAreaW = weekdayRow.width - weekColW;
+  const int cellW = daysAreaW / kWeekdayLabelCount;
+  constexpr int kHeaderBodyGap = 30;
+  const int daysTop = weekdayRow.y + weekdayRow.height + kHeaderBodyGap;
   const int daysBottom = gridCard.y + gridCard.height - innerPad;
   const int daysH = std::max(0, daysBottom - daysTop);
   const int maxRows = 6;
-  const int cellH = daysH > 0 ? std::max(26, daysH / maxRows) : 26;
+  constexpr int kMinDayCellH = 22;
+  constexpr int kWeekRowGap = 5;
+  const int cellSlotH = daysH > 0 ? std::max(kMinDayCellH, daysH / maxRows) : kMinDayCellH;
+  const int rowStride = std::max(kMinDayCellH - 2, cellSlotH - kWeekRowGap);
 
   const int dim = LunarCalendar::daysInGregorianMonth(state.viewYear, state.viewMonth);
-  const int firstWday = LunarCalendar::weekdaySun0(state.viewYear, state.viewMonth, 1);
+  const int firstMon0 = LunarCalendar::weekdayMon0(state.viewYear, state.viewMonth, 1);
+  const int lastRow = dim > 0 ? (firstMon0 + dim - 1) / 7 : 0;
+  const int gridBodyH = std::min((lastRow + 1) * rowStride, daysBottom - daysTop);
+
+  // Header strip (Wk + Mon–Sun labels), separate from the date grid below.
+  if (state.showWeekNumbers && weekColW > 0) {
+    renderer.fillRectDither(weekdayRow.x, weekdayRow.y, weekColW, weekdayH, Color::LightGray);
+  }
+  renderer.fillRectDither(daysLeft, weekdayRow.y, daysAreaW, weekdayH, Color::LightGray);
+
+  // Body strips: week numbers and weekend columns (Sat lighter, Sun darker).
+  if (gridBodyH > 0) {
+    if (state.showWeekNumbers && weekColW > 0) {
+      renderer.fillRectDither(weekdayRow.x, daysTop, weekColW, gridBodyH, Color::LightGray);
+    }
+    constexpr int kSatCol = 5;
+    constexpr int kSunCol = 6;
+    const int satX = daysLeft + kSatCol * cellW;
+    const int sunX = daysLeft + kSunCol * cellW;
+    for (int row = 0; row <= lastRow; ++row) {
+      const int y = daysTop + row * rowStride;
+      if (y + rowStride > daysBottom) {
+        break;
+      }
+      if (monthGridCellHasDay(row, kSatCol, firstMon0, dim)) {
+        fillRectSaturdayDither(renderer, satX, y, cellW, rowStride);
+      }
+      if (monthGridCellHasDay(row, kSunCol, firstMon0, dim)) {
+        fillRectSundayDither(renderer, sunX, y, cellW, rowStride);
+      }
+    }
+  }
+
+  if (state.showWeekNumbers) {
+    const Rect weekHeader{weekdayRow.x, weekdayRow.y, weekColW, weekdayRow.height};
+    drawCenteredInCell(renderer, weekHeader, UI_10_FONT_ID, tr(STR_CALENDAR_WK), false, EpdFontFamily::REGULAR);
+  }
+
+  for (int i = 0; i < kWeekdayLabelCount; ++i) {
+    const Rect labelCell{daysLeft + i * cellW, weekdayRow.y, cellW, weekdayRow.height};
+    drawCenteredInCell(renderer, labelCell, UI_10_FONT_ID, kWeekdayLabels[i], false, EpdFontFamily::REGULAR);
+  }
 
   for (int d = 1; d <= dim; ++d) {
-    const int idx = firstWday + d - 1;
+    const int idx = firstMon0 + d - 1;
     const int row = idx / 7;
     const int col = idx % 7;
-    const int x = weekdayRow.x + col * cellW;
-    const int y = daysTop + row * cellH;
-    if (y + cellH > daysBottom) {
+    const int x = daysLeft + col * cellW;
+    const int y = daysTop + row * rowStride;
+    if (y + rowStride > daysBottom) {
       break;
     }
-    const Rect cell{x, y, cellW, cellH};
+    const Rect cell{x, y, cellW, rowStride};
     const bool selected = (d == state.selectedDay);
     const bool isToday = state.hasToday && state.todayYear == state.viewYear && state.todayMonth == state.viewMonth &&
                          state.todayDay == d;
     drawDayCell(renderer, cell, d, selected, isToday);
+  }
+
+  if (state.showWeekNumbers) {
+    for (int row = 0; row <= lastRow; ++row) {
+      const int y = daysTop + row * rowStride;
+      if (y + rowStride > daysBottom) {
+        break;
+      }
+      const int week = LunarCalendar::isoWeekForMonthGridRow(state.viewYear, state.viewMonth, row);
+      char weekBuf[4];
+      snprintf(weekBuf, sizeof(weekBuf), "%d", week);
+      const Rect weekCell{weekdayRow.x, y, weekColW, rowStride};
+      drawCenteredInCell(renderer, weekCell, UI_10_FONT_ID, weekBuf, false, EpdFontFamily::REGULAR);
+    }
   }
 
   if (state.selectedDay > 0) {

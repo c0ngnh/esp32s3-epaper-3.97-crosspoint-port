@@ -192,6 +192,115 @@ int weekdaySun0(const int year, const int month, const int day) {
   return (w + 7) % 7;
 }
 
+int weekdayMon0(const int year, const int month, const int day) {
+  return (weekdaySun0(year, month, day) + 6) % 7;
+}
+
+bool addGregorianDays(int& year, int& month, int& day, int delta) {
+  if (delta == 0) {
+    return year >= kMinYear && year <= kMaxYear;
+  }
+
+  int remaining = delta > 0 ? delta : -delta;
+  const int step = delta > 0 ? 1 : -1;
+  while (remaining > 0) {
+    day += step;
+    if (step > 0) {
+      if (day > daysInGregorianMonth(year, month)) {
+        day = 1;
+        month++;
+        if (month > 12) {
+          month = 1;
+          year++;
+        }
+      }
+    } else {
+      if (day < 1) {
+        month--;
+        if (month < 1) {
+          month = 12;
+          year--;
+        }
+        day = daysInGregorianMonth(year, month);
+      }
+    }
+    remaining--;
+  }
+  return year >= kMinYear && year <= kMaxYear;
+}
+
+namespace {
+
+int dayOfYear(const int year, const int month, const int day) {
+  static constexpr int kMonthStart[12] = {0, 31, 59, 90, 120, 151, 181, 212, 243, 273, 304, 334};
+  int doy = kMonthStart[month - 1] + day;
+  if (month > 2 && isGregorianLeap(year)) {
+    doy++;
+  }
+  return doy;
+}
+
+int isoWeekRawFromThursday(const int y, const int m, const int d) {
+  const int doy = dayOfYear(y, m, d);
+  const int jan4Mon0 = weekdayMon0(y, 1, 4);
+  return (doy - (4 - jan4Mon0)) / 7 + 1;
+}
+
+int isoWeeksInGregorianYear(const int gregYear) {
+  int y = gregYear;
+  int m = 12;
+  int d = 28;
+  const int toThu = (4 - weekdaySun0(y, m, d) + 7) % 7;
+  if (!addGregorianDays(y, m, d, toThu)) {
+    return 52;
+  }
+  return isoWeekRawFromThursday(y, m, d);
+}
+
+}  // namespace
+
+bool isoWeekAndYear(const int year, const int month, const int day, int& isoYear, int& isoWeek) {
+  int y = year;
+  int m = month;
+  int d = day;
+  const int toThu = (4 - weekdaySun0(y, m, d) + 7) % 7;
+  if (!addGregorianDays(y, m, d, toThu)) {
+    return false;
+  }
+
+  isoWeek = isoWeekRawFromThursday(y, m, d);
+  isoYear = y;
+
+  if (isoWeek < 1) {
+    isoYear = y - 1;
+    isoWeek = isoWeeksInGregorianYear(isoYear);
+  } else {
+    const int weeksInYear = isoWeeksInGregorianYear(y);
+    if (isoWeek > weeksInYear) {
+      isoYear = y + 1;
+      isoWeek = 1;
+    }
+  }
+  return true;
+}
+
+int isoWeekForMonthGridRow(const int year, const int month, const int gridRow) {
+  const int firstMon0 = weekdayMon0(year, month, 1);
+  const int mondayDay = 1 - firstMon0 + gridRow * 7;
+  int y = year;
+  int m = month;
+  int d = 1;
+  if (!addGregorianDays(y, m, d, mondayDay - 1 + 3)) {
+    return 0;
+  }
+  int isoYear = 0;
+  int isoWeek = 0;
+  if (!isoWeekAndYear(y, m, d, isoYear, isoWeek)) {
+    return 0;
+  }
+  return isoWeek;
+}
+
 bool gregorianToLunar(const int year, const int month, const int day, LunarDate& out) {
   return internalGregorianToLunar(year, month, day, out);
 }

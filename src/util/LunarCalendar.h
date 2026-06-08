@@ -17,6 +17,17 @@ constexpr int kMaxYear = 2099;
 
 int daysInGregorianMonth(int year, int month);
 int weekdaySun0(int year, int month, int day);
+// Monday=0 … Sunday=6 (ISO week grid).
+int weekdayMon0(int year, int month, int day);
+
+// Add signed days to a Gregorian date (handles month/year rollover).
+bool addGregorianDays(int& year, int& month, int& day, int delta);
+
+// ISO 8601 week number (1–53) and the ISO week-numbering year.
+bool isoWeekAndYear(int year, int month, int day, int& isoYear, int& isoWeek);
+
+// ISO week for a month-grid row (Monday-first), using that row's Thursday.
+int isoWeekForMonthGridRow(int year, int month, int gridRow);
 
 bool gregorianToLunar(int year, int month, int day, LunarDate& out);
 bool lunarToGregorian(int lunarYear, int lunarMonth, int lunarDay, bool leapMonth, int& outYear, int& outMonth,

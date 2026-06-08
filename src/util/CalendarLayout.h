@@ -20,6 +20,7 @@ struct MonthViewState {
   int todayYear = 0;
   int todayMonth = 0;
   int todayDay = 0;
+  bool showWeekNumbers = true;
 };
 
 struct ConvertViewState {
