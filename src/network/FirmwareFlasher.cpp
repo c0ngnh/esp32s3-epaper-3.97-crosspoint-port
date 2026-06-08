@@ -226,11 +226,31 @@ Result validateImageFile(const char* sdPath, size_t partitionSize) {
   return Result::OK;
 }
 
+const esp_partition_t* getUpdatePartition() {
+  const esp_partition_t* dest = esp_ota_get_next_update_partition(nullptr);
+  if (dest) {
+    return dest;
+  }
+
+  // Single-bank layout (397): only app0/ota_0 — update in place.
+  dest = esp_partition_find_first(ESP_PARTITION_TYPE_APP, ESP_PARTITION_SUBTYPE_APP_OTA_0, nullptr);
+  if (!dest) {
+    LOG_ERR("FLASH", "no OTA app partition found");
+  }
+  return dest;
+}
+
+namespace {
+bool hasOtadataPartition() {
+  return esp_partition_find_first(ESP_PARTITION_TYPE_DATA, ESP_PARTITION_SUBTYPE_DATA_OTA, nullptr) != nullptr;
+}
+}  // namespace
+
 Result flashFromSdPath(const char* sdPath, ProgressCb onProgress, void* ctx, bool alreadyValidated) {
   // Resolve destination first so we can size-check during validation. The full image-integrity
   // pass below verifies header, segment table, XOR checksum and SHA256 trailer end-to-end before
   // we touch otadata, so a truncated/corrupted .bin can never become the next boot target.
-  const esp_partition_t* dest = esp_ota_get_next_update_partition(nullptr);
+  const esp_partition_t* dest = getUpdatePartition();
   if (!dest) {
     LOG_ERR("FLASH", "no next-update partition");
     return Result::NO_PARTITION;
@@ -301,9 +321,13 @@ Result flashFromSdPath(const char* sdPath, ProgressCb onProgress, void* ctx, boo
   }
   file.close();
 
-  if (!ota_boot::switchTo(dest)) {
-    LOG_ERR("FLASH", "otadata switch failed");
-    return Result::OTADATA_FAIL;
+  if (hasOtadataPartition()) {
+    if (!ota_boot::switchTo(dest)) {
+      LOG_ERR("FLASH", "otadata switch failed");
+      return Result::OTADATA_FAIL;
+    }
+  } else {
+    LOG_INF("FLASH", "no otadata partition — in-place app update, reboot to run new image");
   }
   return Result::OK;
 }

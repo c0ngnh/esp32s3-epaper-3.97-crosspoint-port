@@ -1,5 +1,7 @@
 #pragma once
 
+#include <esp_partition.h>
+
 #include <cstddef>
 #include <cstdint>
 
@@ -36,8 +38,9 @@ enum class Result {
 using ProgressCb = void (*)(size_t written, size_t total, void* ctx);
 
 // Open `sdPath`, validate it looks like an ESP32 image, then stream it into the
-// next OTA app partition with interleaved 64 KiB erase + sector writes. On
-// success switches otadata via ota_boot::switchTo. Caller is responsible for
+// update app partition with interleaved 64 KiB erase + sector writes. On success
+// switches otadata when present (dual-bank / X4 layout); single-bank 397
+// layouts in-place-update app0 and skip otadata. Caller is responsible for
 // ESP.restart() afterwards.
 //
 // `alreadyValidated` lets callers that have just run `validateImageFile()`
@@ -57,6 +60,9 @@ Result flashFromSdPath(const char* sdPath, ProgressCb onProgress, void* ctx, boo
 // lookup). Streams the file in CHUNK-sized reads; the file is rewound on
 // success so the caller can immediately reread it for flashing.
 Result validateImageFile(const char* sdPath, size_t partitionSize);
+
+// Destination for SD/OTA writes: next OTA slot when dual-bank, else in-place app0.
+const esp_partition_t* getUpdatePartition();
 
 const char* resultName(Result r);
 

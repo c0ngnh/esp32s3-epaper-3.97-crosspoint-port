@@ -5,7 +5,6 @@
 #include <HalStorage.h>
 #include <I18n.h>
 #include <Logging.h>
-#include <esp_ota_ops.h>
 
 #include "MappedInputManager.h"
 #include "activities/home/FileBrowserActivity.h"
@@ -74,11 +73,9 @@ bool SdFirmwareUpdateActivity::validateFirmware() {
   firmwareSize = file.fileSize();
   file.close();
 
-  // Resolve the next-update partition directly via the OTA API. Previously this
-  // probed via Update.begin(firmwareSize)/Update.abort() to learn the partition
-  // size, which had the side effect of erasing partition state and was wasted
-  // work since we only need the size bound for validation here.
-  const esp_partition_t* dest = esp_ota_get_next_update_partition(nullptr);
+  // Resolve the update partition. Dual-bank boards use the inactive OTA slot;
+  // single-bank 397 layouts update app0 in place.
+  const esp_partition_t* dest = firmware_flash::getUpdatePartition();
   if (!dest) {
     LOG_ERR("FW", "no next-update partition available");
     errorMessage = tr(STR_INVALID_FIRMWARE);

@@ -45,10 +45,14 @@ jobs:
         run: |
           VERSION="${{ github.ref_name }}"
           BUILD_DIR=".pio/build/esp32_s3_epaper_397"
+          MERGED_BIN="$BUILD_DIR/firmware.merged.bin"
           mkdir -p release-assets
+          if [ ! -f "$MERGED_BIN" ]; then
+            echo "Missing merged firmware image: $MERGED_BIN"
+            exit 1
+          fi
+          cp "$MERGED_BIN" "release-assets/crosspoint-397-${VERSION}.bin"
           cp "$BUILD_DIR/firmware.bin" "release-assets/crosspoint-397-${VERSION}-firmware.bin"
-          cp "$BUILD_DIR/bootloader.bin" "release-assets/crosspoint-397-${VERSION}-bootloader.bin"
-          cp "$BUILD_DIR/partitions.bin" "release-assets/crosspoint-397-${VERSION}-partitions.bin"
           cp "$BUILD_DIR/firmware.elf" "release-assets/crosspoint-397-${VERSION}-firmware.elf"
           cp "$BUILD_DIR/firmware.map" "release-assets/crosspoint-397-${VERSION}-firmware.map"
 
@@ -61,5 +65,6 @@ jobs:
       - name: Publish GitHub Release assets
         uses: softprops/action-gh-release@v2
         with:
-          files: release-assets/*
+          files: |
+            release-assets/crosspoint-397-*.bin
           generate_release_notes: true
