@@ -6,12 +6,47 @@
 #include <I18n.h>
 #include <Logging.h>
 
+#include <vector>
+
 #include "MappedInputManager.h"
 #include "activities/home/FileBrowserActivity.h"
 #include "activities/util/ConfirmationActivity.h"
 #include "components/UITheme.h"
 #include "fontIds.h"
 #include "network/FirmwareFlasher.h"
+#include "util/AppScreenLayout.h"
+
+namespace {
+void drawTitleAndWrappedBody(const GfxRenderer& renderer, const Rect& body, const char* title, const char* detail) {
+  if (body.height <= 0) {
+    return;
+  }
+  const auto& metrics = UITheme::getInstance().getMetrics();
+  const int lineH = renderer.getLineHeight(UI_10_FONT_ID);
+  const int pad = metrics.contentSidePadding;
+  const int maxWidth = std::max(0, body.width - pad * 2);
+
+  std::vector<std::string> detailLines;
+  if (detail != nullptr && detail[0] != '\0') {
+    detailLines = renderer.wrappedText(UI_10_FONT_ID, detail, maxWidth, 8, EpdFontFamily::REGULAR);
+  }
+
+  const int detailHeight = static_cast<int>(detailLines.size()) * lineH;
+  const int gap = detailLines.empty() ? 0 : metrics.verticalSpacing;
+  const int blockHeight = lineH + gap + detailHeight;
+  int y = body.y + std::max(0, (body.height - blockHeight) / 2);
+
+  if (title != nullptr && title[0] != '\0') {
+    renderer.drawCenteredText(UI_10_FONT_ID, y, title, true, EpdFontFamily::BOLD);
+    y += lineH + gap;
+  }
+
+  for (const auto& line : detailLines) {
+    renderer.drawText(UI_10_FONT_ID, body.x + pad, y, line.c_str(), true, EpdFontFamily::REGULAR);
+    y += lineH;
+  }
+}
+}  // namespace
 
 void SdFirmwareUpdateActivity::onEnter() {
   Activity::onEnter();
@@ -73,12 +108,16 @@ bool SdFirmwareUpdateActivity::validateFirmware() {
   firmwareSize = file.fileSize();
   file.close();
 
-  // Resolve the update partition. Dual-bank boards use the inactive OTA slot;
-  // single-bank 397 layouts update app0 in place.
+  // Resolve the inactive OTA slot (dual-bank). Single-bank layouts cannot SD-update safely.
+  if (!firmware_flash::hasDualOtaAppPartitions()) {
+    LOG_ERR("FW", "partition table lacks dual OTA app slots");
+    errorMessage = tr(STR_FIRMWARE_USB_FLASH_REQUIRED);
+    return false;
+  }
   const esp_partition_t* dest = firmware_flash::getUpdatePartition();
   if (!dest) {
-    LOG_ERR("FW", "no next-update partition available");
-    errorMessage = tr(STR_INVALID_FIRMWARE);
+    LOG_ERR("FW", "no inactive OTA partition available");
+    errorMessage = tr(STR_FIRMWARE_USB_FLASH_REQUIRED);
     return false;
   }
   const size_t partitionLimit = dest->size;
@@ -122,8 +161,9 @@ void SdFirmwareUpdateActivity::promptConfirmation() {
   const auto pos = body.find_last_of('/');
   if (pos != std::string::npos) body = body.substr(pos + 1);
 
-  startActivityForResult(std::make_unique<ConfirmationActivity>(renderer, mappedInput, heading, body),
-                         [this](const ActivityResult& result) { onConfirmationResult(result); });
+  startActivityForResult(
+      std::make_unique<ConfirmationActivity>(renderer, mappedInput, heading, body, false, 3, true),
+      [this](const ActivityResult& result) { onConfirmationResult(result); });
 }
 
 void SdFirmwareUpdateActivity::onConfirmationResult(const ActivityResult& result) {
@@ -166,7 +206,11 @@ void SdFirmwareUpdateActivity::performUpdate() {
   const auto result = firmware_flash::flashFromSdPath(firmwarePath.c_str(), progressCb, this);
   if (result != firmware_flash::Result::OK) {
     LOG_ERR("FW", "flash failed: %s", firmware_flash::resultName(result));
-    errorMessage = tr(STR_FIRMWARE_WRITE_FAILED);
+    if (result == firmware_flash::Result::INPLACE_NOT_SUPPORTED) {
+      errorMessage = tr(STR_FIRMWARE_USB_FLASH_REQUIRED);
+    } else {
+      errorMessage = tr(STR_FIRMWARE_WRITE_FAILED);
+    }
     RenderLock lock(*this);
     state = State::FAILED;
     requestUpdate();
@@ -205,50 +249,43 @@ void SdFirmwareUpdateActivity::loop() {
 
 void SdFirmwareUpdateActivity::render(RenderLock&&) {
   const auto& metrics = UITheme::getInstance().getMetrics();
-  const auto pageWidth = renderer.getScreenWidth();
-  const auto pageHeight = renderer.getScreenHeight();
+  const auto screen = AppScreenLayout::listScreen(renderer);
 
   renderer.clearScreen();
 
   const char* headerText = recoveryMode ? tr(STR_RECOVERY_MODE) : tr(STR_SD_FIRMWARE_UPDATE);
-  GUI.drawHeader(renderer, Rect{0, metrics.topPadding, pageWidth, metrics.headerHeight}, headerText);
+  GUI.drawHeader(renderer, screen.header, headerText);
 
   const auto lineHeight = renderer.getLineHeight(UI_10_FONT_ID);
-  const auto top = (pageHeight - lineHeight) / 2;
 
   if (state == State::VALIDATING) {
-    renderer.drawCenteredText(UI_10_FONT_ID, top, tr(STR_VALIDATING_FIRMWARE));
+    AppScreenLayout::drawBodyMessage(renderer, screen.body, tr(STR_VALIDATING_FIRMWARE));
   } else if (state == State::UPDATING) {
-    // Throttle redraws to once per percent.
     const unsigned int pct = firmwareSize > 0 ? static_cast<unsigned int>((writtenBytes * 100) / firmwareSize) : 0;
     lastRenderedPercent = pct;
 
-    renderer.drawCenteredText(UI_10_FONT_ID, top, tr(STR_UPDATING), true, EpdFontFamily::BOLD);
+    const int blockHeight = lineHeight + metrics.verticalSpacing + metrics.progressBarHeight + metrics.verticalSpacing +
+                            lineHeight + metrics.verticalSpacing + lineHeight;
+    int y = screen.body.y + std::max(0, (screen.body.height - blockHeight) / 2);
 
-    int y = top + lineHeight + metrics.verticalSpacing;
+    renderer.drawCenteredText(UI_10_FONT_ID, y, tr(STR_UPDATING), true, EpdFontFamily::BOLD);
+    y += lineHeight + metrics.verticalSpacing;
     GUI.drawProgressBar(
         renderer,
-        Rect{metrics.contentSidePadding, y, pageWidth - metrics.contentSidePadding * 2, metrics.progressBarHeight},
+        Rect{metrics.contentSidePadding, y, screen.body.width - metrics.contentSidePadding * 2, metrics.progressBarHeight},
         static_cast<int>(pct), 100);
-    y += metrics.progressBarHeight + metrics.verticalSpacing;
-    // Percent label is drawn by BaseTheme::drawProgressBar; this slot is left intentionally empty
-    // so the do-not-power-off line below stays at the same Y as before.
-    y += lineHeight + metrics.verticalSpacing;
+    y += metrics.progressBarHeight + metrics.verticalSpacing + lineHeight + metrics.verticalSpacing;
     renderer.drawCenteredText(UI_10_FONT_ID, y, tr(STR_FIRMWARE_UPDATE_DO_NOT_POWER_OFF));
   } else if (state == State::SUCCESS) {
-    renderer.drawCenteredText(UI_10_FONT_ID, top, tr(STR_UPDATE_COMPLETE), true, EpdFontFamily::BOLD);
-    renderer.drawCenteredText(UI_10_FONT_ID, top + lineHeight + metrics.verticalSpacing, tr(STR_RESTARTING_HINT));
+    drawTitleAndWrappedBody(renderer, screen.body, tr(STR_UPDATE_COMPLETE), tr(STR_RESTARTING_HINT));
   } else if (state == State::FAILED) {
-    renderer.drawCenteredText(UI_10_FONT_ID, top, tr(STR_UPDATE_FAILED), true, EpdFontFamily::BOLD);
-    if (!errorMessage.empty()) {
-      renderer.drawCenteredText(UI_10_FONT_ID, top + lineHeight + metrics.verticalSpacing, errorMessage.c_str());
-    }
+    drawTitleAndWrappedBody(renderer, screen.body, tr(STR_UPDATE_FAILED),
+                            errorMessage.empty() ? nullptr : errorMessage.c_str());
     const auto labels = mappedInput.mapLabels(tr(STR_BACK), "", "", "");
     GUI.drawButtonHints(renderer, labels.btn1, labels.btn2, labels.btn3, labels.btn4);
   } else {
-    // PICKING / CONFIRMING: a sub-activity is on top, nothing to draw.
     if (recoveryMode) {
-      renderer.drawCenteredText(UI_10_FONT_ID, top, tr(STR_RECOVERY_MODE_HINT));
+      AppScreenLayout::drawBodyMessage(renderer, screen.body, tr(STR_RECOVERY_MODE_HINT));
     }
   }
 

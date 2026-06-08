@@ -2,11 +2,11 @@
 
 Portable **PlatformIO** project for the [Waveshare ESP32-S3-ePaper-3.97](https://www.waveshare.com/esp32-s3-epaper-3.97.htm): a **CrossPoint Reader** port for this board — EPUB reading, Wi-Fi file transfer, settings, OTA, media apps, calendar, alarms, IMU gestures, RTC/NTP, and 397-specific hardware support. For how this differs from official **Xteink X4** firmware, see [Comparison with mainstream CrossPoint Reader](#comparison-with-mainstream-crosspoint-reader).
 
-**Release candidate `1.3.0-WS397-RC`** — Waveshare 3.97 hardware support, reader/menu stability fixes, media tiles, and home UX polish since the `1.3.0-397` dev tag.
+**Release candidate `1.3.1-WS397-RC`** — dual-bank SD firmware update, triple-confirm SD update flow, and SD update UI fixes since `1.3.0-WS397-RC`.
 
 | Field | Value |
 |-------|--------|
-| **Firmware version** | `1.3.0-WS397-RC` (Waveshare 3.97 release candidate) |
+| **Firmware version** | `1.3.1-WS397-RC` (Waveshare 3.97 release candidate) |
 | **Last verified build** | **2026-06-08** (`pio run -e esp32_s3_epaper_397`) |
 | **Snapshot / backup** | See [BACKUP-SNAPSHOT.txt](BACKUP-SNAPSHOT.txt) |
 | **PlatformIO environment** | `esp32_s3_epaper_397` |
@@ -59,6 +59,8 @@ Flashing `-sd-update.bin` at **`0x0`** overwrites the bootloader and will not bo
 ### SD card firmware update
 
 Use this when the device already runs CrossPoint and you want to update without a PC.
+
+SD update writes to the **inactive OTA slot** (dual-bank layout). If you upgraded from an older single-bank release, flash **`-usb-full.bin`** via USB once first — the device shows *Flash -usb-full.bin via USB once, then retry SD update* until that migration is done.
 
 1. Download **`crosspoint-397-<version>-sd-update.bin`** from the release page — **not** the `-usb-full.bin` file.
 2. Copy it to your **FAT32** microSD card (any folder; e.g. `/crosspoint-397-<version>-sd-update.bin`).

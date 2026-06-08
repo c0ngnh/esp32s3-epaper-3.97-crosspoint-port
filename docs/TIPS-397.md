@@ -45,8 +45,8 @@ Partition layout (`partitions.csv`):
 
 | Partition | Size |
 |-----------|------|
-| `app0` | 8 MB — firmware |
-| `spiffs` | ~8 MB — reserved (CrossPoint uses SD for books/media) |
+| `app0` / `app1` | 6 MB each — dual OTA firmware banks |
+| `spiffs` | ~4 MB — reserved (CrossPoint uses SD for books/media) |
 | `nvs` | 20 KB — settings |
 
 ---

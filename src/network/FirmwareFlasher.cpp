@@ -7,6 +7,9 @@
 #include <esp_partition.h>
 #include <mbedtls/sha256.h>
 #include <spi_flash_mmap.h>
+#if defined(BOARD_ESP32_S3_EPAPER_397)
+#include <WiFi.h>
+#endif
 
 #include <algorithm>
 #include <cstring>
@@ -105,6 +108,8 @@ const char* resultName(Result r) {
       return "WRONG_IMAGE_TYPE";
     case Result::NO_PARTITION:
       return "NO_PARTITION";
+    case Result::INPLACE_NOT_SUPPORTED:
+      return "INPLACE_NOT_SUPPORTED";
     case Result::OOM:
       return "OOM";
     case Result::READ_FAIL:
@@ -333,19 +338,84 @@ Result validateSdUpdateImage(const char* sdPath, size_t partitionSize) {
 }
 
 const esp_partition_t* getUpdatePartition() {
-  const esp_partition_t* dest = esp_ota_get_next_update_partition(nullptr);
-  if (dest) {
-    return dest;
+  if (!hasDualOtaAppPartitions()) {
+    LOG_ERR("FLASH", "dual OTA app partitions required for SD update");
+    return nullptr;
   }
 
-  // Single-bank layout (397): only app0/ota_0 — update in place.
-  dest = esp_partition_find_first(static_cast<esp_partition_type_t>(ESP_PARTITION_TYPE_APP),
-                                  static_cast<esp_partition_subtype_t>(ESP_PARTITION_SUBTYPE_APP_OTA_0), nullptr);
+  const esp_partition_t* dest = esp_ota_get_next_update_partition(nullptr);
   if (!dest) {
-    LOG_ERR("FLASH", "no OTA app partition found");
+    LOG_ERR("FLASH", "no inactive OTA app partition");
+    return nullptr;
+  }
+
+  const esp_partition_t* running = esp_ota_get_running_partition();
+  if (running && dest->address == running->address) {
+    LOG_ERR("FLASH", "refusing in-place SD update of running partition %s", dest->label);
+    return nullptr;
   }
   return dest;
 }
+
+bool hasDualOtaAppPartitions() {
+  const esp_partition_t* ota0 = esp_partition_find_first(static_cast<esp_partition_type_t>(ESP_PARTITION_TYPE_APP),
+                                                         static_cast<esp_partition_subtype_t>(ESP_PARTITION_SUBTYPE_APP_OTA_0),
+                                                         nullptr);
+  const esp_partition_t* ota1 = esp_partition_find_first(static_cast<esp_partition_type_t>(ESP_PARTITION_TYPE_APP),
+                                                         static_cast<esp_partition_subtype_t>(ESP_PARTITION_SUBTYPE_APP_OTA_1),
+                                                         nullptr);
+  return ota0 && ota1;
+}
+
+void prepareForFlashWrite() {
+#if defined(BOARD_ESP32_S3_EPAPER_397)
+  WiFi.disconnect(true);
+  delay(50);
+  WiFi.mode(WIFI_OFF);
+  delay(50);
+#endif
+}
+
+namespace {
+bool isRunningPartition(const esp_partition_t* dest) {
+  const esp_partition_t* running = esp_ota_get_running_partition();
+  return running && dest && dest->address == running->address;
+}
+
+Result flashForward(HalFile& file, const esp_partition_t* dest, size_t firmwareSize, uint8_t* buffer,
+                    ProgressCb onProgress, void* ctx) {
+  size_t streamPos = 0;
+  size_t erasedUpto = 0;
+  while (streamPos < firmwareSize) {
+    if (streamPos >= erasedUpto) {
+      size_t eraseLen = std::min<size_t>(BLK, dest->size - streamPos);
+      eraseLen = (eraseLen + SEC - 1) & ~(SEC - 1);
+      eraseLen = std::min<size_t>(eraseLen, dest->size - streamPos);
+      if (esp_partition_erase_range(dest, streamPos, eraseLen) != ESP_OK) {
+        LOG_ERR("FLASH", "erase @%u (len=%u) failed", static_cast<unsigned>(streamPos),
+                static_cast<unsigned>(eraseLen));
+        return Result::ERASE_FAIL;
+      }
+      erasedUpto = streamPos + eraseLen;
+    }
+
+    const size_t want = std::min<size_t>(CHUNK, firmwareSize - streamPos);
+    const int read = file.read(buffer, want);
+    if (read <= 0 || static_cast<size_t>(read) != want) {
+      LOG_ERR("FLASH", "read @%u: got=%d want=%u", static_cast<unsigned>(streamPos), read, static_cast<unsigned>(want));
+      return Result::READ_FAIL;
+    }
+    if (esp_partition_write(dest, streamPos, buffer, want) != ESP_OK) {
+      LOG_ERR("FLASH", "write @%u failed", static_cast<unsigned>(streamPos));
+      return Result::WRITE_FAIL;
+    }
+    streamPos += want;
+    if (onProgress) onProgress(streamPos, firmwareSize, ctx);
+    delay(1);
+  }
+  return Result::OK;
+}
+}  // namespace
 
 namespace {
 bool hasOtadataPartition() {
@@ -362,8 +432,14 @@ Result flashFromSdPath(const char* sdPath, ProgressCb onProgress, void* ctx, boo
   const esp_partition_t* dest = getUpdatePartition();
   if (!dest) {
     LOG_ERR("FLASH", "no next-update partition");
-    return Result::NO_PARTITION;
+    return hasDualOtaAppPartitions() ? Result::NO_PARTITION : Result::INPLACE_NOT_SUPPORTED;
   }
+  if (isRunningPartition(dest)) {
+    LOG_ERR("FLASH", "SD update cannot overwrite the running app partition");
+    return Result::INPLACE_NOT_SUPPORTED;
+  }
+
+  prepareForFlashWrite();
 
   // When the caller already ran validateImageFile() against this same partition
   // size (e.g. SdFirmwareUpdateActivity validates before the confirmation
@@ -394,41 +470,11 @@ Result flashFromSdPath(const char* sdPath, ProgressCb onProgress, void* ctx, boo
     return Result::OOM;
   }
 
-  // Interleave erase + write so the progress bar advances 0→100% smoothly
-  // rather than stalling for several seconds during a single up-front erase.
-  size_t streamPos = 0;
-  size_t erasedUpto = 0;
-  while (streamPos < firmwareSize) {
-    if (streamPos >= erasedUpto) {
-      size_t eraseLen = std::min<size_t>(BLK, dest->size - streamPos);
-      eraseLen = (eraseLen + SEC - 1) & ~(SEC - 1);
-      eraseLen = std::min<size_t>(eraseLen, dest->size - streamPos);
-      if (esp_partition_erase_range(dest, streamPos, eraseLen) != ESP_OK) {
-        LOG_ERR("FLASH", "erase @%u (len=%u) failed", static_cast<unsigned>(streamPos),
-                static_cast<unsigned>(eraseLen));
-        file.close();
-        return Result::ERASE_FAIL;
-      }
-      erasedUpto = streamPos + eraseLen;
-    }
-
-    const size_t want = std::min<size_t>(CHUNK, firmwareSize - streamPos);
-    const int read = file.read(buffer.get(), want);
-    if (read <= 0 || static_cast<size_t>(read) != want) {
-      LOG_ERR("FLASH", "read @%u: got=%d want=%u", static_cast<unsigned>(streamPos), read, static_cast<unsigned>(want));
-      file.close();
-      return Result::READ_FAIL;
-    }
-    if (esp_partition_write(dest, streamPos, buffer.get(), want) != ESP_OK) {
-      LOG_ERR("FLASH", "write @%u failed", static_cast<unsigned>(streamPos));
-      file.close();
-      return Result::WRITE_FAIL;
-    }
-    streamPos += want;
-    if (onProgress) onProgress(streamPos, firmwareSize, ctx);
-    delay(1);
-  }
+  const Result flashRes = flashForward(file, dest, firmwareSize, buffer.get(), onProgress, ctx);
   file.close();
+  if (flashRes != Result::OK) {
+    return flashRes;
+  }
 
   if (hasOtadataPartition()) {
     if (!ota_boot::switchTo(dest)) {
@@ -436,7 +482,8 @@ Result flashFromSdPath(const char* sdPath, ProgressCb onProgress, void* ctx, boo
       return Result::OTADATA_FAIL;
     }
   } else {
-    LOG_INF("FLASH", "no otadata partition — in-place app update, reboot to run new image");
+    LOG_ERR("FLASH", "otadata partition missing after dual-bank flash");
+    return Result::OTADATA_FAIL;
   }
   return Result::OK;
 }

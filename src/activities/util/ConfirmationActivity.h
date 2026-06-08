@@ -20,10 +20,14 @@ class ConfirmationActivity : public Activity {
   int startY = 0;
   int lineHeight = 0;
   bool showOkBackDeleteHints = false;
+  uint8_t requiredConfirmCount = 1;
+  bool showFirmwareConfirmHints = false;
+  uint8_t confirmCount = 0;
 
  public:
   ConfirmationActivity(GfxRenderer& renderer, MappedInputManager& mappedInput, const std::string& heading,
-                       const std::string& body, const bool showOkBackDeleteHints = false);
+                       const std::string& body, const bool showOkBackDeleteHints = false,
+                       uint8_t requiredConfirmCount = 1, const bool showFirmwareConfirmHints = false);
 
   void onEnter() override;
   void loop() override;

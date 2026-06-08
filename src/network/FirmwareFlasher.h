@@ -34,6 +34,7 @@ enum class Result {
   BAD_SIZE,      // body+pad+sha length doesn't match file size
   WRONG_IMAGE_TYPE,  // merged USB full-flash image, not SD app update
   NO_PARTITION,
+  INPLACE_NOT_SUPPORTED,  // single-bank layout — USB full flash required first
   OOM,
   READ_FAIL,
   ERASE_FAIL,
@@ -46,8 +47,8 @@ using ProgressCb = void (*)(size_t written, size_t total, void* ctx);
 
 // Open `sdPath`, validate it looks like an ESP32 image, then stream it into the
 // update app partition with interleaved 64 KiB erase + sector writes. On success
-// switches otadata when present (dual-bank / X4 layout); single-bank 397
-// layouts in-place-update app0 and skip otadata. Caller is responsible for
+// switches otadata when present (dual-bank). Single-bank layouts are rejected —
+// SD update must write the inactive OTA slot, not the running app partition.
 // ESP.restart() afterwards.
 //
 // `alreadyValidated` lets callers that have just run `validateImageFile()`
@@ -77,8 +78,16 @@ bool isSdUpdateImage(const char* sdPath);
 // classifyFirmwareFile + validateImageFile for SD-card update entry points.
 Result validateSdUpdateImage(const char* sdPath, size_t partitionSize);
 
-// Destination for SD/OTA writes: next OTA slot when dual-bank, else in-place app0.
+// Destination for SD/OTA writes: inactive OTA slot (dual-bank). Returns nullptr
+// when only a single app partition is present — SD update cannot safely overwrite
+// the running firmware in that layout.
 const esp_partition_t* getUpdatePartition();
+
+// True when app0 and app1 OTA slots are both present in the partition table.
+bool hasDualOtaAppPartitions();
+
+// Prepare hardware for raw flash writes (WiFi off, etc.). Call before flashFromSdPath.
+void prepareForFlashWrite();
 
 const char* resultName(Result r);
 

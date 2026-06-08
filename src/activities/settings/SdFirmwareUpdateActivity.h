@@ -10,8 +10,8 @@
  * Flow:
  *  1) onEnter -> push FileBrowserActivity in PickFirmware mode (only .bin files visible).
  *  2) On result: validate the .bin (header magic, size fits OTA partition).
- *  3) Push ConfirmationActivity ("Update firmware?").
- *  4) On confirm: stream the file into the OTA partition via the Arduino Update API,
+ *  3) Push ConfirmationActivity ("Update firmware?" — press OK 3 times on 397).
+ *  4) On confirm: stream the file into the inactive OTA partition (dual-bank),
  *     drawing a progress bar; on success ESP.restart().
  *
  * Used both from Settings -> System -> "SD Card Firmware Update", and as the only
