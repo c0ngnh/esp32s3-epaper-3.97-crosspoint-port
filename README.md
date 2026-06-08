@@ -21,8 +21,8 @@ Each release includes two `.bin` files. **Use the correct one for your update me
 
 | Release file | Use for |
 |--------------|---------|
-| **`crosspoint-397-<version>-usb-full.bin`** | **USB flash** via [ESP Launchpad](https://espressif.github.io/esp-launchpad/) at address **`0x0`** |
-| **`crosspoint-397-<version>-sd-update.bin`** | **SD card update** on the device (Settings → System → SD Card Firmware Update) |
+| **`crosspoint-397-<version>-usb-full.bin`** | **USB full flash** via [ESP Launchpad](https://espressif.github.io/esp-launchpad/) at address **`0x0`** (first install or recovery) |
+| **`crosspoint-397-<version>-sd-update.bin`** | **SD card update** on the device (Settings → System → SD Card Firmware Update), or **USB app-only flash** via ESP Launchpad at **`0x10000`** (see below) |
 
 **Board:** [Waveshare ESP32-S3-ePaper-3.97](https://www.waveshare.com/esp32-s3-epaper-3.97.htm) only — **not** Xteink X4 or other ESP boards.
 
@@ -39,6 +39,22 @@ Each release includes two `.bin` files. **Use the correct one for your update me
 7. Leave **Flashing baud rate** at **921600** (or lower to **460800** if flashing fails).
 8. Click **Program** and wait until the console shows success.
 9. Click **Reset Device**, or unplug and replug USB. The CrossPoint home screen should appear on the e-paper display.
+
+### USB flash app-only image (ESP Launchpad)
+
+Use **`crosspoint-397-<version>-sd-update.bin`** over USB when the board already has a working bootloader and partition table (e.g. you previously flashed with `-usb-full.bin` or an older release) and you only want to update the application.
+
+1. Download **`crosspoint-397-<version>-sd-update.bin`** from the release page.
+2. Open **[ESP Launchpad](https://espressif.github.io/esp-launchpad/)** in Chrome or Edge and connect the board (same steps as above).
+3. In DIY mode, click **Add File** and select the `-sd-update.bin` file with flash address **`0x10000`** — **not** `0x0`.
+4. Click **Program**, then **Reset Device**.
+
+| File | ESP Launchpad address |
+|------|----------------------|
+| `-usb-full.bin` | **`0x0`** (bootloader + partition table + app) |
+| `-sd-update.bin` | **`0x10000`** (app partition only) |
+
+Flashing `-sd-update.bin` at **`0x0`** overwrites the bootloader and will not boot — recover by re-flashing **`-usb-full.bin`** at **`0x0`**.
 
 ### SD card firmware update
 
@@ -68,6 +84,7 @@ The device validates the file before flashing. If you pick the USB full image by
 | Flash fails / timeout (USB) | Lower baud rate to **460800** or **115200** |
 | Blank screen after flash | **Reset Device** in Launchpad, or power-cycle the board |
 | SD update rejects the file | You likely picked **`-usb-full.bin`** — use **`-sd-update.bin`** instead |
+| Used `-sd-update.bin` in Launchpad at `0x0` | Re-flash **`-usb-full.bin`** at **`0x0`**, or use **`-sd-update.bin`** at **`0x10000`** only |
 | Wrong firmware on wrong board | Only use releases from **this** repo on the Waveshare 3.97 — X4 `.bin` files will not work |
 
 ---
