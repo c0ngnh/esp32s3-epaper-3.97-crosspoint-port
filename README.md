@@ -13,11 +13,59 @@ Portable **PlatformIO** project for the [Waveshare ESP32-S3-ePaper-3.97](https:/
 
 ---
 
+## Flash firmware (ESP Launchpad)
+
+Install a pre-built firmware from the [GitHub Releases](https://github.com/c0ngnh/esp32s3-epaper-3.97-crosspoint-port/releases) page — no compiler or PlatformIO required.
+
+**Requirements**
+
+| Item | Detail |
+|------|--------|
+| **Board** | [Waveshare ESP32-S3-ePaper-3.97](https://www.waveshare.com/esp32-s3-epaper-3.97.htm) only — **not** Xteink X4 or other ESP boards |
+| **Browser** | **Google Chrome** or **Microsoft Edge** (Web Serial / WebUSB). Safari and Firefox are not supported by [ESP Launchpad](https://espressif.github.io/esp-launchpad/) yet |
+| **Cable** | USB-C data cable to your PC |
+| **Files** | From the release you chose, download these three assets: `crosspoint-397-<version>-bootloader.bin`, `crosspoint-397-<version>-partitions.bin`, and `crosspoint-397-<version>-firmware.bin` |
+
+**Steps**
+
+1. Insert a **FAT32** microSD card, connect the board via USB-C (hold **BOOT** if the serial port does not appear).
+2. Open **[ESP Launchpad](https://espressif.github.io/esp-launchpad/)** in Chrome or Edge.
+3. Scroll to **“Choose your own built firmware image from the local storage to flash and use.”** (DIY mode).
+4. Click **Add File** three times and set the flash address for each downloaded file:
+
+   | Flash address | Release file |
+   |---------------|--------------|
+   | `0x0` | `crosspoint-397-<version>-bootloader.bin` |
+   | `0x8000` | `crosspoint-397-<version>-partitions.bin` |
+   | `0x10000` | `crosspoint-397-<version>-firmware.bin` |
+
+5. Click **Connect** in the top menu and pick your board’s USB serial port. If no port appears, unplug USB, hold **BOOT**, plug in again, then retry **Connect**.
+6. Leave **Flashing baud rate** at **921600** (or lower to **460800** if flashing fails).
+7. Click **Program** and wait until the console shows success.
+8. Click **Reset Device**, or unplug and replug USB. The CrossPoint home screen should appear on the e-paper display.
+
+**After flashing**
+
+- First boot creates `/pictures`, `/music`, and `/recordings` on the SD card if they are missing.
+- Copy EPUB files to the SD card, then use **Browse files** on the home menu.
+- To update later, download a newer release and repeat the same three-file flash, or use **Settings → System → SD firmware update** if that option is enabled in your build.
+
+**Troubleshooting**
+
+| Problem | What to try |
+|---------|-------------|
+| No serial port | Hold **BOOT** while connecting USB; try another cable or USB port |
+| Flash fails / timeout | Lower baud rate to **460800** or **115200** |
+| Blank screen after flash | **Reset Device** in Launchpad, or power-cycle the board |
+| Wrong firmware on wrong board | Only use releases from **this** repo on the Waveshare 3.97 — X4 `.bin` files will not work |
+
+---
+
 ## Documentation map
 
 | Document | Purpose |
 |----------|---------|
-| [README.md](README.md) | This file — features, manual, build, backup, **vs upstream** |
+| [README.md](README.md) | This file — **flash from release** (top), features, manual, build, backup, **vs upstream** |
 | [BACKUP-SNAPSHOT.txt](BACKUP-SNAPSHOT.txt) | Portable backup metadata and rebuild steps |
 | [esp32s3-epaper-3.97.md](esp32s3-epaper-3.97.md) | Pinout, wiring, init snippets, controls, troubleshooting |
 | [docs/TIPS-397.md](docs/TIPS-397.md) | Tips (SD, sleep, Wi-Fi, audio, UI) |
@@ -177,7 +225,7 @@ This tree is a **board-specific port**, not a drop-in replacement for official [
 ### Choosing which firmware to use
 
 - **Xteink X4** → use **[crosspoint-reader](https://github.com/crosspoint-reader/crosspoint-reader)** official builds and docs.
-- **Waveshare ESP32-S3-ePaper-3.97** → use **this repository** (`pio run -e esp32_s3_epaper_397`).
+- **Waveshare ESP32-S3-ePaper-3.97** → download a build from **[Releases](https://github.com/c0ngnh/esp32s3-epaper-3.97-crosspoint-port/releases)** and flash with [ESP Launchpad](https://espressif.github.io/esp-launchpad/) (see [Flash firmware](#flash-firmware-esp-launchpad)), or build from source with `pio run -e esp32_s3_epaper_397`.
 
 You can study or merge **source ideas** between projects (both are open source), but **do not flash** an X4 `.bin` on the Waveshare board or vice versa.
 
@@ -191,7 +239,7 @@ You can study or merge **source ideas** between projects (both are open source),
 2. Connect USB-C for power and flashing (hold **BOOT** if the serial port does not appear).
 3. Optional: speaker on MX1.25 header for music / alarms.
 
-### 2. Build and flash (PC)
+### 2. Build and flash from source (PC)
 
 Requires [PlatformIO](https://platformio.org/) and internet on **first** build.
 
