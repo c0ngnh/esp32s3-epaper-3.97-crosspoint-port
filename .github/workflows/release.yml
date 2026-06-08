@@ -1,0 +1,65 @@
+name: Compile Release
+
+on:
+  push:
+    tags:
+      - '*'
+
+permissions:
+  contents: write
+
+jobs:
+  build-release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          version: latest
+          enable-cache: false
+
+      - name: Install PlatformIO Core
+        run: uv pip install --system -U https://github.com/pioarduino/platformio-core/archive/refs/tags/v6.1.19.zip
+
+      - name: Install build script dependencies
+        run: uv pip install --system -r scripts/requirements.txt
+
+      - name: Cache PlatformIO packages
+        uses: actions/cache@v4
+        with:
+          path: ~/.platformio
+          key: pio-${{ runner.os }}-${{ hashFiles('platformio.ini') }}
+          restore-keys: |
+            pio-${{ runner.os }}-
+
+      - name: Build CrossPoint 397 firmware
+        run: pio run -e esp32_s3_epaper_397
+
+      - name: Prepare release assets
+        run: |
+          VERSION="${{ github.ref_name }}"
+          BUILD_DIR=".pio/build/esp32_s3_epaper_397"
+          mkdir -p release-assets
+          cp "$BUILD_DIR/firmware.bin" "release-assets/crosspoint-397-${VERSION}-firmware.bin"
+          cp "$BUILD_DIR/bootloader.bin" "release-assets/crosspoint-397-${VERSION}-bootloader.bin"
+          cp "$BUILD_DIR/partitions.bin" "release-assets/crosspoint-397-${VERSION}-partitions.bin"
+          cp "$BUILD_DIR/firmware.elf" "release-assets/crosspoint-397-${VERSION}-firmware.elf"
+          cp "$BUILD_DIR/firmware.map" "release-assets/crosspoint-397-${VERSION}-firmware.map"
+
+      - name: Upload CI artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: CrossPoint-397-${{ github.ref_name }}
+          path: release-assets/
+
+      - name: Publish GitHub Release assets
+        uses: softprops/action-gh-release@v2
+        with:
+          files: release-assets/*
+          generate_release_notes: true
