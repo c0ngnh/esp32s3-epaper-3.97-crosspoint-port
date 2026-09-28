@@ -22,7 +22,7 @@ def merge_firmware(source, target, env):
     flash_size = board.get("upload.flash_size", "16MB")
     f_flash = str(board.get("build.f_flash", "80000000L"))
     flash_freq = "80m" if f_flash.startswith("80") else "40m"
-    flash_mode = board.get("build.flash_mode", "qio")
+    flash_mode = board.get("build.flash_mode", "dio")
 
     esptool_pkg = env.PioPlatform().get_package_dir("tool-esptoolpy")
     esptool_py = os.path.join(esptool_pkg, "esptool.py")

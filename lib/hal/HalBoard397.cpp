@@ -533,9 +533,26 @@ void HalBoard397::enableEpaperRail() const {
   }
   ensureWire();
   uint8_t ldo = 0;
-  if (!readReg8(I2C_ADDR_AXP2101, AXP_REG_LDO_ONOFF0, &ldo)) {
+  bool readOk = false;
+  for (uint8_t attempt = 0; attempt < 8 && !readOk; ++attempt) {
+    if (attempt > 0) {
+      delay(25);  // The shared I2C bus can be busy at display start; retry.
+    }
+    readOk = readReg8(I2C_ADDR_AXP2101, AXP_REG_LDO_ONOFF0, &ldo);
+  }
+  if (!readOk) {
+    // Do not skip the rail when the read fails; write the ALDO3-only state instead.
+    // This state is equivalent to the Waveshare factory demo (EPD_Power_ON, ALDO3 only).
+    uint8_t chipId = 0;
+    const bool busAlive = readReg8(I2C_ADDR_AXP2101, AXP_CHIP_ID, &chipId);
+    LOG_INF("WS397", "AXP ALDO3 read failed (i2c=%u id=0x%02x); forcing ALDO3-only rail",
+            static_cast<unsigned>(busAlive), chipId);
+    (void)writeReg8(I2C_ADDR_AXP2101, AXP_REG_ALDO3_VOL, 0x1C);  // 3.3 V
+    (void)writeReg8(I2C_ADDR_AXP2101, AXP_REG_LDO_ONOFF0, AXP_LDO_ALDO3_MASK);
+    delay(10);  // Waveshare EPD_Power_ON delay
     return;
   }
+  (void)writeReg8(I2C_ADDR_AXP2101, AXP_REG_ALDO3_VOL, 0x1C);  // 3.3 V (idempotent)
   if ((ldo & AXP_LDO_ALDO3_MASK) != 0) {
     return;
   }
@@ -543,6 +560,8 @@ void HalBoard397::enableEpaperRail() const {
   if (writeReg8(I2C_ADDR_AXP2101, AXP_REG_LDO_ONOFF0, ldo)) {
     LOG_DBG("WS397", "AXP ALDO3 (e-paper rail) enabled");
     delay(10);  // Waveshare EPD_Power_ON delay
+  } else {
+    LOG_INF("WS397", "AXP ALDO3 enable write failed");
   }
 #endif
 }
@@ -560,7 +579,16 @@ void HalBoard397::disableEpaperRail() const {
   }
   ensureWire();
   uint8_t ldo = 0;
-  if (!readReg8(I2C_ADDR_AXP2101, AXP_REG_LDO_ONOFF0, &ldo)) {
+  bool readOk = false;
+  for (uint8_t attempt = 0; attempt < 8 && !readOk; ++attempt) {
+    if (attempt > 0) {
+      delay(25);  // The shared I2C bus can be busy at display start; retry.
+    }
+    readOk = readReg8(I2C_ADDR_AXP2101, AXP_REG_LDO_ONOFF0, &ldo);
+  }
+  if (!readOk) {
+    // Cannot read the rail state; keep the register unchanged (safe default).
+    LOG_INF("WS397", "AXP ALDO3 disable skipped (read failed)");
     return;
   }
   if ((ldo & AXP_LDO_ALDO3_MASK) == 0) {
